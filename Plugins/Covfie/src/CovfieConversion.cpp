@@ -17,8 +17,8 @@ namespace Acts::CovfieConversion{
 /// @param position 
 /// @return 
 template <typename cache_t>
-auto fieldLookup(const Acts::InterpolatedMagneticField& magneticField, [[maybe_unused]] cache_t& cache, const Acts::Vector3& position){
-    return magneticField.getFieldUnchecked(position);
+auto fieldLookup(const Acts::InterpolatedMagneticField& magneticField, cache_t& /* cache */, const Acts::Vector3& position){
+    return magneticField.getFieldUnchecked(position);;
 }
 
 /// @brief Get the value of the field at a specific position of a general magnetic field.
