@@ -12,7 +12,10 @@ target_link_libraries(
   PUBLIC
     ActsCore
     traccc::core
-    traccc::io)
+    traccc::io
+    vecmem::core
+    detray::utils
+    detray::io)
 
 install(
   TARGETS ActsPluginTraccc
