@@ -181,6 +181,8 @@ ActsExamples::ProcessCode ActsExamples::DigitizationAlgorithm::execute(
       ACTS_VERBOSE("Digitizer found for module " << moduleGeoId);
     }
 
+    std::vector<std::vector<std::tuple<double, int>>> grid(0, std::vector<std::tuple<double, int>>(0));
+
     // Run the digitizer. Iterate over the hits for this surface inside the
     // visitor so we do not need to lookup the variant object per-hit.
     std::visit(
@@ -210,6 +212,9 @@ ActsExamples::ProcessCode ActsExamples::DigitizationAlgorithm::execute(
               auto channelsRes = m_channelizer.channelize(
                   simHit, *surfacePtr, ctx.geoContext, driftDir,
                   cfg.segmentation, cfg.thickness);
+
+
+              
               if (!channelsRes.ok() || channelsRes->empty()) {
                 ACTS_DEBUG(
                     "Geometric channelization did not work, skipping this hit.")

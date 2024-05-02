@@ -61,7 +61,16 @@
 
 namespace Acts::TracccConversion{
 
-auto convertData(){
+// https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/core/include/traccc/edm/cell.hpp#L27
+// https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/core/include/traccc/edm/cell.hpp#L27
+// https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/io/src/csv/read_cells.cpp#L165
+// m_channelizer.channelize in digitalization algorithm.
+
+
+auto convertData(std::vector<std::vector<std::tuple<double, int>>> grid,
+                const traccc::geometry* geom,
+                const std::map<std::uint64_t, detray::geometry::barcode>* barcode_map){
+    
     traccc::cell_collection_types::host cells{};
     traccc::cell_module_collection_types::host modules{};
 
@@ -69,13 +78,115 @@ auto convertData(){
 
 }
 
-template <typename track_container_t, typename traj_t, template <typename> class holder_t>
-Acts::Result<typename Acts::TrackContainer<track_container_t, traj_t, holder_t>::TrackProxy>
-convert(traccc::track_state_container_types::host data){
+// Code modified based off of traccc/io/src/csv/read_cells.cpp 
+// (keep the conversion code while removing the requirement that the input is a file)
+namespace {
+    
+/// Helper function which finds module from csv::cell in the geometry and
+/// digitization config, and initializes the modules limits with the cell's
+/// properties
+traccc::cell_module get_module(const std::uint64_t geometry_id,
+                               const traccc::geometry* geom,
+                               const traccc::digitization_config* dconfig,
+                               const std::uint64_t original_geometry_id) {
 
-    Acts::Result<typename Acts::TrackContainer<track_container_t, traj_t, holder_t>::TrackProxy> result{};
+    traccc::cell_module result;
+    result.surface_link = detray::geometry::barcode{geometry_id};
+
+    // Find/set the 3D position of the detector module.
+    if (geom != nullptr) {
+
+        // Check if the module ID is known.
+        if (!geom->contains(result.surface_link.value())) {
+            throw std::runtime_error(
+                "Could not find placement for geometry ID " +
+                std::to_string(result.surface_link.value()));
+        }
+
+        // Set the value on the module description.
+        result.placement = (*geom)[result.surface_link.value()];
+    }
+
+    // Find/set the digitization configuration of the detector module.
+    if (dconfig != nullptr) {
+
+        // Check if the module ID is known.
+        const traccc::digitization_config::Iterator geo_it =
+            dconfig->find(original_geometry_id);
+        if (geo_it == dconfig->end()) {
+            throw std::runtime_error(
+                "Could not find digitization config for geometry ID " +
+                std::to_string(original_geometry_id));
+        }
+
+        // Set the value on the module description.
+        const auto& binning_data = geo_it->segmentation.binningData();
+        assert(binning_data.size() >= 2);
+        result.pixel = {binning_data[0].min, binning_data[1].min,
+                        binning_data[0].step, binning_data[1].step};
+    }
 
     return result;
+}
+
+auto convertCellsMap(
+    const std::map<std::uint64_t, std::vector<traccc::cell>> cellsMap,
+    const traccc::geometry* geom,
+    const traccc::digitization_config* dconfig,
+    const std::map<std::uint64_t,
+    detray::geometry::barcode>* barcode_map) {
+
+    traccc::cell_collection_types::host resCells{};
+    traccc::cell_module_collection_types::host resModules{};
+
+    // Fill the output containers with the ordered cells and modules.
+    for (const auto& [original_geometry_id, cells] : cellsMap) {
+        // Modify the geometry ID of the module if a barcode map is
+        // provided.
+        std::uint64_t geometry_id = original_geometry_id;
+        if (barcode_map != nullptr) {
+            const auto it = barcode_map->find(geometry_id);
+            if (it != barcode_map->end()) {
+                geometry_id = it->second.value();
+            } else {
+                throw std::runtime_error(
+                    "Could not find barcode for geometry ID " +
+                    std::to_string(geometry_id));
+            }
+        }
+
+        // Add the module and its cells to the output.
+        resModules.push_back(
+            get_module(geometry_id, geom, dconfig, original_geometry_id));
+        for (auto& cell : cells) {
+            resCells.push_back(cell);
+            // Set the module link.
+            resCells.back().module_link = resModules.size() - 1;
+        }
+    }
+    return std::tie(resCells, resModules);
+}
+
+};
+
+template <typename track_container_t, typename traj_t, template <typename> class holder_t>
+//Acts::Result<typename Acts::TrackContainer<track_container_t, traj_t, holder_t>::TrackProxy>
+void convert(const traccc::track_state_container_types::host& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer){
+
+    //Acts::Result<typename Acts::TrackContainer<track_container_t, traj_t, holder_t>::TrackProxy> result{};
+
+    for (std::size_t i = 0; i < data.size(); i++){
+        
+        auto c = data[i];
+        auto fittingResult = c.header;
+        auto trackStates = c.items;
+
+        auto track = trackContainer.makeTrack();
+        
+
+
+    }
+
 }
 
 template <typename detector_t,
@@ -114,12 +225,15 @@ class TracccChain{
             fittingFunc(fitFunc),
             resolutionFunc(resFunc){}
 
+    template <typename track_container_t, typename traj_t, template <typename> class holder_t>
+    auto run(traccc::cell_collection_types::host& cells,
+        traccc::cell_module_collection_types::host& modules,
+        Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer){
+        auto res = run(cells, modules);
+        convert(res, trackContainer);
+        }
 
-    auto operator()(traccc::cell_collection_types::host& cells, traccc::cell_module_collection_types::host& modules) const{
-
-    }
-
-
+    private:
 
     auto run(traccc::cell_collection_types::host& cells,
         traccc::cell_module_collection_types::host& modules) const {
@@ -147,7 +261,6 @@ class TracccChain{
         return resolvedTrackStates;
     }
 
-    private:
 
     bool ambiguityResolution = true;
 

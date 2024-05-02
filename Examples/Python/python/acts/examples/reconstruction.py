@@ -1788,7 +1788,7 @@ def addAmbiguityResolutionMLDBScan(
     addTrackWriters(
         s,
         name="ambiMLDBScan",
-        trajectories=alg.config.outputTracks,
+        tracks=alg.config.outputTracks,
         outputDirRoot=outputDirRoot,
         outputDirCsv=outputDirCsv,
         writeStates=writeTrajectories,
@@ -1978,4 +1978,44 @@ def addSingleSeedVertexFinding(
             )
         )
 
+    return s
+
+
+
+def addTracccChain(
+    s: acts.examples.Sequencer,
+    trackingGeometry: acts.TrackingGeometry,
+    field: acts.MagneticFieldProvider,
+    inputCells:  Optional[str]= "cells", #"InputCells",
+    outputTracks: Optional[str]="ambi_tracks",
+    outputDirRoot: Optional[Union[Path, str]] = None,
+    outputDirCsv: Optional[Union[Path, str]] = None,
+    logLevel: Optional[acts.logging.Level] = None,
+    writeTrajectories: bool = True,
+) -> None:
+    from acts.examples import TracccChainAlgorithm
+
+    customLogLevel = acts.examples.defaultLogging(s, logLevel)
+
+    alg = TracccChainAlgorithm(
+        level=customLogLevel(),
+        inputCells=inputCells,
+        outputTracks=outputTracks,
+        trackingGeometry=trackingGeometry,
+        field=field,
+    )
+
+    s.addAlgorithm(alg)
+
+    #addTrackWriters(
+    #    s,
+    #    name="tracccChain",
+    #    tracks=outputTracks,
+    #    outputDirCsv=outputDirCsv,
+    #    outputDirRoot=outputDirRoot,
+    #    writeStates=writeTrajectories,
+    #    writeSummary=writeTrajectories,
+    #    writeCKFperformance=True,
+    #    logLevel=logLevel,
+    #)
     return s

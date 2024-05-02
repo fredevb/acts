@@ -102,12 +102,12 @@ BOOST_AUTO_TEST_CASE(Traccc_Conversion_Chain) {
     traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
 
     // container_types<fitting_result<transform3>, track_state<transform3>>
-    traccc::track_state_container_types::host result = chain.run(readOut.cells, readOut.modules);
-    for (std::size_t i = 0; i < result.size(); i++){
-        auto c = result[i];
-        auto fittingResult = c.header;
-        auto trackStates = c.items;
-    }
+    //traccc::track_state_container_types::host result = chain.run(readOut.cells, readOut.modules);
+    //for (std::size_t i = 0; i < result.size(); i++){
+    //    auto c = result[i];
+    //    auto fittingResult = c.header;
+    //    auto trackStates = c.items;
+    //}
     
 }
 

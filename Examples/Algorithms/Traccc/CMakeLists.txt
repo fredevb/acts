@@ -1,6 +1,6 @@
 add_library(
   ActsExamplesTraccc SHARED
-  src/TracccAlgorithm.cpp
+  src/TracccChainAlgorithm.cpp
 )
 
 target_include_directories(
@@ -11,7 +11,7 @@ target_include_directories(
 target_link_libraries(
   ActsExamplesTraccc
   PUBLIC
-    TracccConversion
+    ActsPluginTraccc
     ActsExamplesFramework
 )
 

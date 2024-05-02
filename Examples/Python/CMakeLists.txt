@@ -190,6 +190,13 @@ else()
   target_sources(ActsPythonBindings PRIVATE src/CovfieStub.cpp)
 endif()
 
+if(ACTS_BUILD_PLUGIN_TRACCC)
+  target_link_libraries(ActsPythonBindings PUBLIC ActsPluginTraccc ActsExamplesTraccc)
+  target_sources(ActsPythonBindings PRIVATE src/Traccc.cpp)
+else()
+  target_sources(ActsPythonBindings PRIVATE src/TracccStub.cpp)
+endif()
+
 configure_file(setup.sh.in ${_python_dir}/setup.sh @ONLY)
 install(FILES ${_python_dir}/setup.sh DESTINATION "python")
 
