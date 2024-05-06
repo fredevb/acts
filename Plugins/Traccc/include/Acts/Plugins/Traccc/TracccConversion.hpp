@@ -59,6 +59,8 @@
 #include <type_traits>
 #include <tuple>
 
+#include "Acts/EventData/MultiTrajectory.hpp"
+
 namespace Acts::TracccConversion{
 
 // https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/core/include/traccc/edm/cell.hpp#L27
@@ -169,25 +171,112 @@ auto convertCellsMap(
 
 };
 
-template <typename track_container_t, typename traj_t, template <typename> class holder_t>
-//Acts::Result<typename Acts::TrackContainer<track_container_t, traj_t, holder_t>::TrackProxy>
-void convert(const traccc::track_state_container_types::host& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer){
-
-    //Acts::Result<typename Acts::TrackContainer<track_container_t, traj_t, holder_t>::TrackProxy> result{};
-
-    for (std::size_t i = 0; i < data.size(); i++){
-        
-        auto c = data[i];
-        auto fittingResult = c.header;
-        auto trackStates = c.items;
-
-        auto track = trackContainer.makeTrack();
-        
-
-
+template <std::size_t N, typename vectorN_t>
+void newVector(const vectorN_t& vec){
+    ActsVector<N> res;
+    for(int i = 0; i < N; i++){
+        res[i] = vec[i];
     }
+    return res;
+}
+
+template <std::size_t N, typename matrixNxN_t>
+void newSqaureMatrix(const matrixNxN_t& mat){
+    ActsSquareMatrix<N> res;
+    for(int x = 0; x < N; x++){
+        for(int y = 0; y < N; y++){
+            res[x][y] = mat[x][y];
+        }
+    }
+    return res;
+}
+
+
+template <typename vector_t>
+Acts::Surface actsSurfaceSearch(const vector_t& position){
+    
+}
+
+template <typename algebra_t>
+Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebra_t>& dparams){
+
+    typename detray::bound_track_parameters<algebra_t>::track_helper trackHelper;
+    auto pos = trackHelper.pos(dparams.vector());
+    const Acts::Vector4 pos4{
+        pos[0],
+        pos[1],
+        pos[2],
+        dparams.time()
+    };
+
+    Acts::GeometryContext context;
+    typename BoundTrackParameters::CovarianceMatrix cov = newSqaureMatrix<6U>(dparams.covariance);
+    Acts::ParticleHypothesis particleHypothesis = Acts::ParticleHypothesis::pion();
+    
+    auto params = Acts::BoundTrackParameters::create(
+        getActsSurface(dparams.surface_link()),
+        context,
+        pos4,
+        newVector<3U>(dparams.dir()),
+        dparams.qOverP(),
+        cov,
+        particleHypothesis,
+    );
+    //(*params).particleHypothesis
+    //dparams.
+
+    //params.phi() = dparams.phi();
+    //params.theta() = dparams.theta();
+    //copyVector(dparams.bound_local(), params.localPosition());
+    //copyVector(dparams.dir(), params.direction());
+    //params.time() = dparams.time();
+    //params.charge() = dparams.charge();
+    //params.qOverP() = dparams.qop();
+    //copyVector(dparams.mom(), params.momentum());
+    //copySqaureMatrix(dparams.covariance(), params.covariance());
+    //params.referenceSurface = getActsSurface(dparams.surface_link());
+    return *params;
+}
+
+
+template <typename transform3_t, typename trajectory_t, std::size_t M>
+void copyTrackState(const traccc::track_state<transform3_t>& source, Acts::TrackStateProxy<trajectory_t, M, false>& destination) {
 
 }
+
+template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
+void copyFittingResult(const traccc::fitting_result<traccc::transform3>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, true>& destination){
+    const auto params = newParams(source.fit_params);
+    //track.tipIndex() = kalmanResult.lastMeasurementIndex;
+    destination.parameters() = params.parameters();
+    destination.covariance() = params.covariance().value();
+    destination.setReferenceSurface(params.referenceSurface().getSharedPtr());
+}
+
+template <typename transform3_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t>
+void copyTrackStates(const vecmem::vector<traccc::track_state<traccc::transform3>>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, true>& destination){
+    for (const auto& tstate : source){
+        auto astate = destination.appendTrackState();
+        copyTrackState(tstate, astate);
+    }
+}
+
+template <typename track_container_t, typename traj_t, template <typename> class holder_t>
+void copyTrackContainer(const traccc::track_state_container_types::host& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer) {
+
+    for (std::size_t i = 0; i < data.size(); i++) {
+        auto e = data[i];
+        auto fittingResult = e.header;
+        auto trackStates = e.items;
+
+        auto track = trackContainer.makeTrack();
+
+        copyFittingResult(fittingResult, track);
+        copytrackStates(trackStates, track);
+    }
+}
+
+
 
 template <typename detector_t,
           typename field_t,
@@ -226,11 +315,11 @@ class TracccChain{
             resolutionFunc(resFunc){}
 
     template <typename track_container_t, typename traj_t, template <typename> class holder_t>
-    auto run(traccc::cell_collection_types::host& cells,
+    void run(traccc::cell_collection_types::host& cells,
         traccc::cell_module_collection_types::host& modules,
         Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer){
         auto res = run(cells, modules);
-        convert(res, trackContainer);
+        copyTrackContainer(res, trackContainer);
         }
 
     private:
