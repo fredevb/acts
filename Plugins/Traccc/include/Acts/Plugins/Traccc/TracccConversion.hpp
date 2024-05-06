@@ -193,31 +193,50 @@ void newSqaureMatrix(const matrixNxN_t& mat){
 
 
 template <typename vector_t>
-Acts::Surface actsSurfaceSearch(const vector_t& position){
-    
+Acts::Result<Acts::Surface> actsSurfaceSearch(const Acts::GeometryContext& gctx, const Acts::Vector3& position, const Acts::Vector3& direction, const Acts::TrackingGeometry& trackingGeometry){
+
+    double tolerance = 0.001;
+    Acts::BoundaryCheck bCheck(true, true, tolerance, tolerance);
+     
+    if (trackingGeometry != nullptr) {
+      auto& layer = trackingGeometry.associatedLayer(gctx, position);
+
+      if (layer.surfaceArray() != nullptr) {
+        for (const auto& surface : layer.surfaceArray()->surfaces()) {
+          if (surface.isOnSurface(gctx, position, direction, bCheck)) {
+            return Acts::Result<Acts::Surface>::success(surface);
+          }
+        }
+      }
+    }
+    return Acts::Result<Acts::Surface>::error("No surface found");
+  }
 }
 
 template <typename algebra_t>
 Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebra_t>& dparams){
 
+    Acts::GeometryContext gctx;
     typename detray::bound_track_parameters<algebra_t>::track_helper trackHelper;
-    auto pos = trackHelper.pos(dparams.vector());
+    Acts::Vector3 position = newVector<3U>(trackHelper.pos(dparams.vector()));
+    Acts::Vector3 direction = newVector<3U>(dparams.dir());
+    typename BoundTrackParameters::CovarianceMatrix cov = newSqaureMatrix<6U>(dparams.covariance);
+    Acts::ParticleHypothesis particleHypothesis = Acts::ParticleHypothesis::pion();
+
     const Acts::Vector4 pos4{
-        pos[0],
-        pos[1],
-        pos[2],
+        position[0],
+        position[1],
+        position[2],
         dparams.time()
     };
 
-    Acts::GeometryContext context;
-    typename BoundTrackParameters::CovarianceMatrix cov = newSqaureMatrix<6U>(dparams.covariance);
-    Acts::ParticleHypothesis particleHypothesis = Acts::ParticleHypothesis::pion();
-    
+    auto surface = *actsSurfaceSearch(gctx, position, direction, ...geometry)
+    // Create params
     auto params = Acts::BoundTrackParameters::create(
-        getActsSurface(dparams.surface_link()),
-        context,
+        surface,
+        gctx,
         pos4,
-        newVector<3U>(dparams.dir()),
+        direction,
         dparams.qOverP(),
         cov,
         particleHypothesis,
