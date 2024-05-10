@@ -25,7 +25,6 @@ namespace Acts::Python {
 
 void addTracccChain(Context& ctx) {
   auto mex = ctx.get("examples");
-  auto& m = ctx.get("main");
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TracccChainAlgorithm, mex,

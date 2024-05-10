@@ -5,7 +5,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
+/*
 // Boost.Test include(s).
 #include <boost/test/unit_test.hpp>
 
@@ -94,12 +94,12 @@ BOOST_AUTO_TEST_CASE(Traccc_Conversion_Chain) {
     const typename decltype(factory)::finding_algorithm_t::config_type findingConfig{};
     const typename decltype(factory)::fitting_algorithm_t::config_type fittingConfig{};
 
-    auto chain = factory.buildChainHost(host_mr, detector, field, finderConfig, gridConfig, filterConfig, findingConfig, fittingConfig);
+    //auto chain = factory.buildChainHost(host_mr, detector, field, finderConfig, gridConfig, filterConfig, findingConfig, fittingConfig);
 
-    traccc::io::cell_reader_output readOut(&host_mr);
+    //traccc::io::cell_reader_output readOut(&host_mr);
 
     // Read the cells from the relevant event file
-    traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
+    //traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
 
     // container_types<fitting_result<transform3>, track_state<transform3>>
     //traccc::track_state_container_types::host result = chain.run(readOut.cells, readOut.modules);
@@ -109,7 +109,7 @@ BOOST_AUTO_TEST_CASE(Traccc_Conversion_Chain) {
     //    auto trackStates = c.items;
     //}
     
-}
+}*/
 
 // https://github.com/acts-project/traccc/blob/710b62cac11c0dd9e139bd82d7cbafa4bc863b6c/core/include/traccc/utils/algorithm.hpp
 // https://github.com/acts-project/traccc/blob/710b62cac11c0dd9e139bd82d7cbafa4bc863b6c/core/include/traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp

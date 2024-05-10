@@ -191,7 +191,7 @@ else()
 endif()
 
 if(ACTS_BUILD_PLUGIN_TRACCC)
-  target_link_libraries(ActsPythonBindings PUBLIC ActsPluginTraccc ActsExamplesTraccc)
+  target_link_libraries(ActsPythonBindings PUBLIC ActsExamplesTraccc)
   target_sources(ActsPythonBindings PRIVATE src/Traccc.cpp)
 else()
   target_sources(ActsPythonBindings PRIVATE src/TracccStub.cpp)

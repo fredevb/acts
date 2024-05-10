@@ -24,6 +24,17 @@
 #include <memory>
 #include <string>
 
+// Detray include(s).
+#include "detray/core/detector.hpp"
+#include "detray/detectors/bfield.hpp"
+#include "detray/io/frontend/detector_reader.hpp"
+#include "detray/navigation/navigator.hpp"
+#include "detray/propagator/propagator.hpp"
+#include "detray/propagator/rk_stepper.hpp"
+
+// VecMem include(s).
+#include <vecmem/memory/host_memory_resource.hpp>
+
 namespace ActsExamples {
 
 /// Construct a traccc algorithm
@@ -59,5 +70,12 @@ ReadDataHandle<MeasurementContainer> m_inputCells{this,
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 };
+
+using detector_type = detray::detector<detray::default_metadata,
+                                        detray::host_container_types>;
+
+vecmem::host_memory_resource host_mr;
+
+detector_type detector{host_mr};
 
 }  // namespace ActsExamples

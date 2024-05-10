@@ -129,6 +129,8 @@ class DigitizationConfig {
   std::string outputSourceLinks = "sourcelinks";
   /// Output measurements collection.
   std::string outputMeasurements = "measurements";
+  /// Output cells map (geoID -> collection of cells).
+  std::string outputCells = "cells";
   /// Output cluster collection.
   std::string outputClusters = "clusters";
   /// Output collection to map measured hits to contributing particles.

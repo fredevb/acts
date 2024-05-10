@@ -8,11 +8,9 @@
 
 #pragma once
 
-// Boost.Test include(s).
-#include <boost/test/unit_test.hpp>
-
 // acts include (s)
 #include "Acts/Utilities/Result.hpp"
+#include "Acts/Geometry/TrackingGeometry.hpp"
 
 // traccc plugin include (s)
 #include "Acts/Plugins/Traccc/TracccConversion.hpp"
@@ -63,21 +61,58 @@
 
 namespace Acts::TracccConversion{
 
+
+
+template <typename metadata_t, typename container_t, typename module_digitization_config_t>
+class DataConverter{
+    public:
+    using detector_t = detray::detector<metadata_t, container_t>;
+    DataConverter(const detector_t& det, Acts::GeometryHierarchyMap<Acts::BinUtility> segs) : detector(det), segmentations(segs){
+        [surface_transforms, barcode_map] = getGeometry(detector);
+    }
+
+    auto convertData(std::map<Acts::GeometryIdentifier, CellsCollection> map){
+        
+    }
+    
+    private:
+    const detector_t& detector;
+    Acts::GeometryHierarchyMap<Acts::BinUtility> segmentations;
+    const traccc::geometry surface_transforms;
+    const std::map<std::uint64_t, detray::geometry::barcode>* barcode_map;
+}
+
 // https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/core/include/traccc/edm/cell.hpp#L27
 // https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/core/include/traccc/edm/cell.hpp#L27
 // https://github.com/acts-project/traccc/blob/436424f777b45c583754718c470f1c70b87ad11e/io/src/csv/read_cells.cpp#L165
 // m_channelizer.channelize in digitalization algorithm.
 
 
-auto convertData(std::vector<std::vector<std::tuple<double, int>>> grid,
-                const traccc::geometry* geom,
-                const std::map<std::uint64_t, detray::geometry::barcode>* barcode_map){
+
+/// Expects getCellRow and getCellColumn for cell type. Also cell.activation
+template <typename CellsCollection>
+auto convertData(std::map<Acts::GeometryIdentifier, CellsCollection> map){
+    traccc::cell_collection_types::host tracccCells{};
+    traccc::cell_module_collection_types::host tracccModules{};
     
-    traccc::cell_collection_types::host cells{};
-    traccc::cell_module_collection_types::host modules{};
+    // Fill the output containers with the ordered cells and modules.
+    for (const auto& [geometryID, cells] : map) {
+        // Add the module and its cells to the output.
+        modules.push_back(
+            get_module(geometry_id, geom, dconfig, original_geometry_id));
+        for (auto& cell : cells) {
+            traccc::cell tracccCell{
+                getCellRow(cell),
+                getCellColumn(cell),
+                cell.activation,
+                0,
+                tracccModules.size() - 1
+            };
+            tracccCells.push_back(tracccCell);
+        }
+    }
 
-    return std::tie(cells, modules);
-
+    return std::tie(tracccCells, tracccModules);
 }
 
 // Code modified based off of traccc/io/src/csv/read_cells.cpp 
@@ -171,90 +206,69 @@ auto convertCellsMap(
 
 };
 
-template <std::size_t N, typename vectorN_t>
-void newVector(const vectorN_t& vec){
-    ActsVector<N> res;
-    for(int i = 0; i < N; i++){
-        res[i] = vec[i];
+template <std::size_t N, typename dvector_t>
+Acts::ActsVector<N> newVector(const dvector_t& dvec){
+    Acts::ActsVector<N> res;
+    for(std::size_t i = 0; i < N; i++){
+        res(i) = static_cast<Acts::ActsScalar>(dvec[0][i]);
     }
     return res;
 }
 
 template <std::size_t N, typename matrixNxN_t>
-void newSqaureMatrix(const matrixNxN_t& mat){
-    ActsSquareMatrix<N> res;
-    for(int x = 0; x < N; x++){
-        for(int y = 0; y < N; y++){
-            res[x][y] = mat[x][y];
+Acts::ActsSquareMatrix<N> newSqaureMatrix(const matrixNxN_t& mat){
+    Acts::ActsSquareMatrix<N> res;
+    for(std::size_t x = 0; x < N; x++){
+        for(std::size_t y = 0; y < N; y++){
+            res(x,y) = static_cast<Acts::ActsScalar>(mat[x][y]);
         }
     }
     return res;
 }
 
 
-template <typename vector_t>
-Acts::Result<Acts::Surface> actsSurfaceSearch(const Acts::GeometryContext& gctx, const Acts::Vector3& position, const Acts::Vector3& direction, const Acts::TrackingGeometry& trackingGeometry){
+Acts::Result<const Acts::Surface*> actsSurfaceSearch(const Acts::GeometryContext& gctx, const Acts::Vector3& position, const Acts::Vector3& direction, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry){
 
     double tolerance = 0.001;
     Acts::BoundaryCheck bCheck(true, true, tolerance, tolerance);
-     
-    if (trackingGeometry != nullptr) {
-      auto& layer = trackingGeometry.associatedLayer(gctx, position);
 
-      if (layer.surfaceArray() != nullptr) {
-        for (const auto& surface : layer.surfaceArray()->surfaces()) {
-          if (surface.isOnSurface(gctx, position, direction, bCheck)) {
-            return Acts::Result<Acts::Surface>::success(surface);
-          }
+    if (trackingGeometry != nullptr){
+        
+        auto layer = trackingGeometry->associatedLayer(gctx, position);
+
+        if (layer->surfaceArray() != nullptr) {
+            for (const auto surface : layer->surfaceArray()->surfaces()) {
+                if (surface->isOnSurface(gctx, position, direction, bCheck)) {
+                    return Acts::Result<const Acts::Surface*>::success(surface);
+                }
+            }
         }
-      }
     }
-    return Acts::Result<Acts::Surface>::error("No surface found");
-  }
+
+    auto errorCode = Acts::make_error_code(Acts::SurfaceError::GlobalPositionNotOnSurface);
+    return Acts::Result<const Acts::Surface*>::failure(errorCode);
 }
 
-template <typename algebra_t>
-Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebra_t>& dparams){
+template <typename algebra_t, typename detector_t>
+Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebra_t>& dparams, const detector_t& det, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry){
 
     Acts::GeometryContext gctx;
-    typename detray::bound_track_parameters<algebra_t>::track_helper trackHelper;
-    Acts::Vector3 position = newVector<3U>(trackHelper.pos(dparams.vector()));
-    Acts::Vector3 direction = newVector<3U>(dparams.dir());
-    typename BoundTrackParameters::CovarianceMatrix cov = newSqaureMatrix<6U>(dparams.covariance);
+    Acts::ActsVector<6U> parameterVector = newVector<6U>(dparams.vector());
+    typename Acts::BoundTrackParameters::CovarianceMatrix cov = newSqaureMatrix<6U>(dparams.covariance());
     Acts::ParticleHypothesis particleHypothesis = Acts::ParticleHypothesis::pion();
 
-    const Acts::Vector4 pos4{
-        position[0],
-        position[1],
-        position[2],
-        dparams.time()
-    };
+    auto geoID = Acts::GeometryIdentifier(det.surface(dparams.surface_link()).source);
 
-    auto surface = *actsSurfaceSearch(gctx, position, direction, ...geometry)
-    // Create params
-    auto params = Acts::BoundTrackParameters::create(
-        surface,
-        gctx,
-        pos4,
-        direction,
-        dparams.qOverP(),
+    auto surface = trackingGeometry->findSurface(geoID);
+
+    Acts::BoundTrackParameters params(
+        std::shared_ptr<const Acts::Surface>(surface),
+        parameterVector,
         cov,
-        particleHypothesis,
+        particleHypothesis
     );
-    //(*params).particleHypothesis
-    //dparams.
 
-    //params.phi() = dparams.phi();
-    //params.theta() = dparams.theta();
-    //copyVector(dparams.bound_local(), params.localPosition());
-    //copyVector(dparams.dir(), params.direction());
-    //params.time() = dparams.time();
-    //params.charge() = dparams.charge();
-    //params.qOverP() = dparams.qop();
-    //copyVector(dparams.mom(), params.momentum());
-    //copySqaureMatrix(dparams.covariance(), params.covariance());
-    //params.referenceSurface = getActsSurface(dparams.surface_link());
-    return *params;
+    return params;
 }
 
 
@@ -263,25 +277,25 @@ void copyTrackState(const traccc::track_state<transform3_t>& source, Acts::Track
 
 }
 
-template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
-void copyFittingResult(const traccc::fitting_result<traccc::transform3>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, true>& destination){
-    const auto params = newParams(source.fit_params);
+template <typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename detector_t>
+void copyFittingResult(const traccc::fitting_result<traccc::transform3>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& destination, const detector_t& det, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry){
+    const auto params = newParams(source.fit_params, det, trackingGeometry);
     //track.tipIndex() = kalmanResult.lastMeasurementIndex;
     destination.parameters() = params.parameters();
     destination.covariance() = params.covariance().value();
     destination.setReferenceSurface(params.referenceSurface().getSharedPtr());
 }
 
-template <typename transform3_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t>
-void copyTrackStates(const vecmem::vector<traccc::track_state<traccc::transform3>>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, true>& destination){
+template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
+void copyTrackStates(const vecmem::vector<traccc::track_state<traccc::transform3>>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& destination){
     for (const auto& tstate : source){
         auto astate = destination.appendTrackState();
         copyTrackState(tstate, astate);
     }
 }
 
-template <typename track_container_t, typename traj_t, template <typename> class holder_t>
-void copyTrackContainer(const traccc::track_state_container_types::host& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer) {
+template <typename track_container_t, typename traj_t, template <typename> class holder_t, typename detector_t>
+void copyTrackContainer(const traccc::track_state_container_types::host& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer, const detector_t& det, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry) {
 
     for (std::size_t i = 0; i < data.size(); i++) {
         auto e = data[i];
@@ -290,8 +304,8 @@ void copyTrackContainer(const traccc::track_state_container_types::host& data, A
 
         auto track = trackContainer.makeTrack();
 
-        copyFittingResult(fittingResult, track);
-        copytrackStates(trackStates, track);
+        copyFittingResult(fittingResult, track, det, trackingGeometry);
+        copyTrackStates(trackStates, track);
     }
 }
 
@@ -311,6 +325,7 @@ class TracccChain{
     public:
 
     TracccChain(
+        std::shared_ptr<const Acts::TrackingGeometry> trackingGeom,
         vecmem::memory_resource& hostmr,
         detector_t& det,
         field_t& f,
@@ -322,6 +337,7 @@ class TracccChain{
                 fitting_func_t& fitFunc,
                 resolution_func_t& resFunc) 
             : 
+            trackingGeometry(trackingGeom),
             hostMemoryResource(hostmr),
             detector(det),
             field(f),
@@ -334,17 +350,17 @@ class TracccChain{
             resolutionFunc(resFunc){}
 
     template <typename track_container_t, typename traj_t, template <typename> class holder_t>
-    void run(traccc::cell_collection_types::host& cells,
-        traccc::cell_module_collection_types::host& modules,
-        Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer){
+    void run(const traccc::cell_collection_types::host& cells,
+        const traccc::cell_module_collection_types::host& modules, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer){
+        //auto [cells, modules] = convertData();
         auto res = run(cells, modules);
-        copyTrackContainer(res, trackContainer);
+        copyTrackContainer(res, trackContainer, detector, trackingGeometry);
         }
 
     private:
 
-    auto run(traccc::cell_collection_types::host& cells,
-        traccc::cell_module_collection_types::host& modules) const {
+    auto run(const traccc::cell_collection_types::host& cells,
+        const traccc::cell_module_collection_types::host& modules) const {
 
         typename clusterization_func_t::output_type measurements{&hostMemoryResource};
         typename spacepoint_formation_func_t::output_type spacepoints{&hostMemoryResource};
@@ -372,6 +388,7 @@ class TracccChain{
 
     bool ambiguityResolution = true;
 
+    std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
     vecmem::memory_resource& hostMemoryResource;
     detector_t& detector;
     field_t& field;
@@ -400,6 +417,7 @@ class TracccChainFactory{
 
     template <typename field_t>
     auto buildChainHost(
+                std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry,
                 vecmem::host_memory_resource& host_mr,
                 detector_t& detector,
                 field_t& field,
@@ -421,7 +439,7 @@ class TracccChainFactory{
         fitting_algorithm_t fitFunc(fittingConfig);
         traccc::greedy_ambiguity_resolution_algorithm res;
 
-        TracccChain tc(host_mr, detector, field, ca, sf, sa, tp, findFunc, fitFunc, res);
+        TracccChain tc(trackingGeometry, host_mr, detector, field, ca, sf, sa, tp, findFunc, fitFunc, res);
         return tc;
     }
 };
@@ -450,20 +468,17 @@ getGeometry(const detector_t& detector) {
     return {surface_transforms, std::move(barcode_map)};
 }
 
-auto readDetector(vecmem::host_memory_resource& host_mr, const std::string& detectorFile, const std::string& materialFile = "", const std::string& gridFile = ""){
+auto readDetector(vecmem::host_memory_resource& host_mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = ""){
     using detector_type = detray::detector<detray::default_metadata,
                                         detray::host_container_types>;
     // Set up the detector reader configuration.
     detray::io::detector_reader_config cfg;
-    cfg.add_file(traccc::io::data_directory() +
-                detectorFile);
-    if (materialFile.empty() == false) {
-        cfg.add_file(traccc::io::data_directory() +
-                    materialFile);
+    cfg.add_file(detectorFilePath);
+    if (!materialFilePath.empty()) {
+        cfg.add_file(materialFilePath);
     }
-    if (gridFile.empty() == false) {
-        cfg.add_file(traccc::io::data_directory() +
-                    gridFile);
+    if (!gridFilePath.empty()) {
+        cfg.add_file(gridFilePath);
     }
 
     // Read the detector.
