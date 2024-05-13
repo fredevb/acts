@@ -13,6 +13,7 @@ target_link_libraries(
   PUBLIC
     ActsPluginTraccc
     ActsExamplesFramework
+    ActsExamplesDigitization
 )
 
 install(

@@ -8,6 +8,10 @@
 
 #pragma once
 
+// Traccc plugin include(s)
+#include "Acts/Plugins/Traccc/Chain.hpp"
+
+// Acts include(s)
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Cluster.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
@@ -17,12 +21,9 @@
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
-
+#include "ActsExamples/Digitization/DigitizationConfig.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
-
-#include <memory>
-#include <string>
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
@@ -35,6 +36,10 @@
 // VecMem include(s).
 #include <vecmem/memory/host_memory_resource.hpp>
 
+// System include(s)
+#include <memory>
+#include <string>
+
 namespace ActsExamples {
 
 /// Construct a traccc algorithm
@@ -45,6 +50,7 @@ struct Config {
     std::string outputTracks = "ambi_tracks";
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry = nullptr;
     std::shared_ptr<const Acts::MagneticFieldProvider> field = nullptr;
+    Acts::GeometryHierarchyMap<DigiComponentsConfig> digitizationConfigs;
 };
 
 /// Construct the traccc algorithm.
@@ -63,19 +69,22 @@ ProcessCode execute(const AlgorithmContext& ctx) const final override;
 const Config& config() const { return m_cfg; }
 
 private:
+
+using CellsMap = std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>;
+
 Config m_cfg;
 
-ReadDataHandle<MeasurementContainer> m_inputCells{this,
-                                                        "InputCells"};
+ReadDataHandle<CellsMap> m_inputCells{this, "InputCells"};
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 };
 
-using detector_type = detray::detector<detray::default_metadata,
-                                        detray::host_container_types>;
+//using detector_type = detray::detector<detray::default_metadata,
+//                                        detray::host_container_types>;
+                            
+using chain_type = Acts::TracccPlugin::Chain::TracccChainFactory::chain_t;
+vecmem::host_memory_resource memoryResource;
 
-vecmem::host_memory_resource host_mr;
-
-detector_type detector{host_mr};
+std::shared_ptr<chain_type> chain;
 
 }  // namespace ActsExamples

@@ -29,7 +29,7 @@ void addTracccChain(Context& ctx) {
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TracccChainAlgorithm, mex,
       "TracccChainAlgorithm", inputCells,
-      outputTracks, trackingGeometry, field);
+      outputTracks, trackingGeometry, field, digitizationConfigs);
 }
 
 }  // namespace Acts::Python

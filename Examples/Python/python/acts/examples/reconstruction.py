@@ -1986,6 +1986,7 @@ def addTracccChain(
     s: acts.examples.Sequencer,
     trackingGeometry: acts.TrackingGeometry,
     field: acts.MagneticFieldProvider,
+    digiConfigFile,
     inputCells:  Optional[str]= "cells", #"InputCells",
     outputTracks: Optional[str]="ambi_tracks",
     outputDirRoot: Optional[Union[Path, str]] = None,
@@ -2003,6 +2004,9 @@ def addTracccChain(
         outputTracks=outputTracks,
         trackingGeometry=trackingGeometry,
         field=field,
+        digitizationConfigs=acts.examples.readDigiConfigFromJson(
+            str(digiConfigFile),
+        )
     )
 
     s.addAlgorithm(alg)

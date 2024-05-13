@@ -15,7 +15,8 @@ target_link_libraries(
     traccc::io
     vecmem::core
     detray::utils
-    detray::io)
+    detray::io
+    ActsPluginCovfie)
 
 install(
   TARGETS ActsPluginTraccc
