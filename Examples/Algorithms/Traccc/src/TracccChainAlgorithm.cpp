@@ -9,9 +9,6 @@
 // Acts examples include(s)
 #include "ActsExamples/Traccc/TracccChainAlgorithm.hpp"
 
-// Traccc plugin include(s)
-#include "Acts/Plugins/Traccc/Chain.hpp"
-
 // Acts include (s)
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/EventData/TrackProxy.hpp"
@@ -40,7 +37,7 @@
 
 #include <stdexcept>
 
-using namespace Acts::TracccPlugin::Chain;
+using namespace Acts::TracccPlugin;
 
 ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
     ActsExamples::TracccChainAlgorithm::Config cfg, Acts::Logging::Level lvl)
@@ -50,9 +47,9 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
   if (m_cfg.inputCells.empty()) {
     throw std::invalid_argument("Missing input cells");
   }
-  if (m_cfg.field == nullptr) {
-    throw std::invalid_argument("Missing field");
-  }
+  //if (m_cfg.field == nullptr) {
+  //  throw std::invalid_argument("Missing field");
+  //}
   if (m_cfg.trackingGeometry == nullptr) {
     throw std::invalid_argument("Missing track geometry");
   }
@@ -74,17 +71,8 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
   }
   std::shared_ptr<const Acts::GeometryHierarchyMap<Acts::BinUtility>> segmentations = std::make_shared<const Acts::GeometryHierarchyMap<Acts::BinUtility>>(vec);
 
-  const traccc::seedfinder_config finderConfig{};
-  const traccc::spacepoint_grid_config gridConfig{finderConfig};
-  const traccc::seedfilter_config filterConfig{};
-  const TracccChainFactory::finding_algorithm_t::config_type findingConfig{};
-  const TracccChainFactory::fitting_algorithm_t::config_type fittingConfig{};
-
-  TracccChainFactory factory;
-
-  auto temp_field = std::make_shared<Acts::ConstantBField>(Acts::ConstantBField(Acts::Vector3{0.f, 0.f, 1.f}));
-
-  chain = std::make_shared<chain_type>(factory.buildChainHost(m_cfg.trackingGeometry, memoryResource, segmentations, temp_field, finderConfig, gridConfig, filterConfig, findingConfig, fittingConfig));
+  wrappedChain = std::make_shared<WrappedChain<chain_t>>(m_cfg.trackingGeometry, m_cfg.digitizationConfigs, *m_cfg.field, &mr, chain);
+  // Load geosegs
 }
 
 
@@ -93,15 +81,13 @@ const AlgorithmContext& ctx) const {
   // Read input data
   const auto& cellsMap = m_inputCells(ctx);
 
-  using field_t = detray::bfield::const_field_t;
-  const traccc::vector3 field_vec = {0.f, 0.f, 1.0f};
-  const field_t field = detray::bfield::create_const_field(field_vec);
 
   //TODO: Compile traccc chain here!
   //Remember to update the hard coded filepath that loads the detray detector
   //Make getCellTime and getCellActivation
   //Convert to correct Acts::GeometryHeirarchy input
   //TODO: Load input cellsMap
+  //SETUP WRAPPED CHAIN
 
   // Get the geometry.
   //auto [surface_transforms, barcode_map] = getGeometry(detector);
@@ -126,7 +112,7 @@ const AlgorithmContext& ctx) const {
   auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
   TrackContainer tracks(trackContainer, trackStateContainer);
 
-  (*chain)(cellsMap, tracks); 
+  (*wrappedChain)(tracks, cellsMap); 
 
   ACTS_INFO("Ran the traccc algorithm!");
 

@@ -29,10 +29,10 @@
 // System include(s)
 #include <memory>
 
-namespace Acts::TracccPlugin::TrackConversion {
+namespace Acts::TracccPlugin {
 
 template <typename algebra_t, typename metadata_t, typename container_t>
-Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebra_t>& dparams, const detray::detector<metadata_t, container_t>& det, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry){
+Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebra_t>& dparams, const detray::detector<metadata_t, container_t>& det, const Acts::TrackingGeometry& trackingGeometry){
 
     Acts::GeometryContext gctx;
     Acts::ActsVector<6U> parameterVector = Utils::newVector<6U>(dparams.vector());
@@ -41,7 +41,7 @@ Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebr
 
     auto geoID = Acts::GeometryIdentifier(det.surface(dparams.surface_link()).source);
 
-    auto surface = trackingGeometry->findSurface(geoID);
+    auto surface = trackingGeometry.findSurface(geoID);
 
     Acts::BoundTrackParameters params(
         std::shared_ptr<const Acts::Surface>(surface),
@@ -54,7 +54,7 @@ Acts::BoundTrackParameters newParams(const detray::bound_track_parameters<algebr
 }
 
 template <typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
-void copyFittingResult(const traccc::fitting_result<traccc::transform3>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& destination, const detray::detector<metadata_t, container_t>& det, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry){
+void copyFittingResult(const traccc::fitting_result<traccc::transform3>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& destination, const detray::detector<metadata_t, container_t>& det, const Acts::TrackingGeometry& trackingGeometry){
     const auto params = newParams(source.fit_params, det, trackingGeometry);
     //track.tipIndex() = kalmanResult.lastMeasurementIndex;
     destination.parameters() = params.parameters();
@@ -75,8 +75,8 @@ void copyTrackStates(const vecmem::vector<traccc::track_state<traccc::transform3
     }
 }
 
-template <typename track_container_t, typename traj_t, template <typename> class holder_t, typename metadata_t, typename container_t>
-void copyTrackContainer(const traccc::track_state_container_types::host& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer, const detray::detector<metadata_t, container_t>& det, std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry) {
+template <typename traccc_track_state_container_t, typename track_container_t, typename traj_t, template <typename> class holder_t, typename metadata_t, typename container_t>
+void copyTrackContainer(const traccc_track_state_container_t& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer, const detray::detector<metadata_t, container_t>& det, const Acts::TrackingGeometry& trackingGeometry) {
 
     for (std::size_t i = 0; i < data.size(); i++) {
         auto e = data[i];
@@ -89,4 +89,5 @@ void copyTrackContainer(const traccc::track_state_container_types::host& data, A
         copyTrackStates(trackStates, track);
     }
 }
+
 }

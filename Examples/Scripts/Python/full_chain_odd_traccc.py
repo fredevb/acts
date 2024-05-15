@@ -240,7 +240,8 @@ addTracccChain(
     s,
     trackingGeometry,
     field,
-    inputCells="measurements",
+    digiConfigFile=oddDigiConfig,
+    inputCells="cells",
     outputDirRoot=outputDir,
 )
 

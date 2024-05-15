@@ -12,9 +12,6 @@
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 
-// VecMem include(s)
-#include <vecmem/memory/host_memory_resource.hpp>
-
 // Detray include(s)
 #include "detray/core/detector.hpp"
 
@@ -140,48 +137,29 @@ void read_cells(
 
 }
 
-namespace Acts::TracccPlugin::Internal {
-    template <typename, typename T = void>
-    struct cellTypeHasRequiredFunctions : std::false_type {};
+namespace Acts::TracccPlugin{
 
-    template <typename T>
-    struct cellTypeHasRequiredFunctions<
-        T,
-        std::void_t<decltype(getCellRow(std::declval<T>())),
-                    decltype(getCellColumn(std::declval<T>())),
-                    decltype(getCellActivation(std::declval<T>())),
-                    decltype(getCellTime(std::declval<T>()))>> : std::true_type {
-    };
-
-    template <typename T>
-    constexpr void staticCheckCellType() {
-    constexpr bool hasFns = cellTypeHasRequiredFunctions<T>();
-    static_assert(hasFns,
-                    "Cell type should have the following functions: "
-                    "'int getCellRow(const Cell&)', "
-                    "'int getCellColumn(const Cell&)', "
-                    "'int getCellActivation(const Cell&)', "
-                    "'int getCellTime(const Cell&)'");
-    }
-}
-
-namespace Acts::TracccPlugin::CellConversion{
+template <typename Cell>
+struct CellDataGetter{
+    virtual double getTime(const Cell& cell) const = 0;
+    virtual double getActivation(const Cell& cell) const = 0;
+    virtual int getRow(const Cell& cell) const = 0;
+    virtual int getColumn(const Cell& cell) const = 0;
+};
 
 template <typename CellCollection>
-std::map<std::uint64_t, std::vector<traccc::cell>> newCellsMap(const std::map<Acts::GeometryIdentifier, CellCollection>& map){
-    using Cell = typename CellCollection::value_type;
-    Internal::staticCheckCellType<Cell>();
+std::map<std::uint64_t, std::vector<traccc::cell>> newCellsMap(const std::map<Acts::GeometryIdentifier, CellCollection>& map, const CellDataGetter<typename CellCollection::value_type>& getter){
 
     std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
     for (const auto& [geometryID, cells] : map){
         std::vector<traccc::cell> tracccCells;
         for (const auto& cell : cells){
             traccc::cell tracccCell{
-                getCellRow(cell),
-                getCellColumn(cell),        
-                getCellActivation(cell), //cell.activation
-                getCellTime(cell)
-                //tracccModules.size() - 1
+                static_cast<traccc::channel_id>(getter.getRow(cell)),
+                static_cast<traccc::channel_id>(getter.getColumn(cell)),        
+                static_cast<traccc::scalar>(getter.getActivation(cell)),
+                static_cast<traccc::scalar>(getter.getTime(cell)),
+                0//tracccModules.size() - 1
             };
             tracccCells.push_back(tracccCell);
         }
@@ -200,6 +178,7 @@ std::map<std::uint64_t, detray::geometry::barcode> getBarcodeMap(const detray::d
     // Construct a map from Acts surface identifiers to Detray barcodes.
     std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
     for (const auto& surface : detector.surfaces()) {
+        std::cout << "source: " << surface.source << std::endl;
         barcode_map[surface.source] = surface.barcode();
     }
     return barcode_map;
@@ -214,30 +193,29 @@ traccc::digitization_config getConfig(const Acts::GeometryHierarchyMap<Acts::Bin
     return traccc::digitization_config(vec);
 }
 
-template <typename metadata_t, typename container_t>
+template <typename metadata_t, typename container_t, typename cell_data_getter_t>
 class CellDataConverter{
     public:
-    using detector_type = detray::detector<metadata_t, container_t>;
-    CellDataConverter(vecmem::memory_resource& mr, const detector_type& det, Acts::GeometryHierarchyMap<Acts::BinUtility> segs) :
-    memoryResource(mr),
+    using detector_t = detray::detector<metadata_t, container_t>;
+    CellDataConverter(const detector_t& det, const Acts::GeometryHierarchyMap<Acts::BinUtility>& segs, const cell_data_getter_t& g) :
     detector(det),
     digitizationConfig(getConfig(segs)),
+    getter(g),
     surface_transforms(getSurfaceTransforms(det)),
     barcodeMap(getBarcodeMap(det)){}
 
-    template <typename CellsCollection>
-    auto operator()(std::map<Acts::GeometryIdentifier, CellsCollection> map) const{
-        const auto cellsMap = newCellsMap(map);
-        traccc::io::cell_reader_output readOut(&memoryResource);
+    template <typename host_mr_t, typename CellCollection>
+    auto operator()(host_mr_t& mr, std::map<Acts::GeometryIdentifier, CellCollection> map) const{
+        const auto cellsMap = newCellsMap(map, getter);
+        traccc::io::cell_reader_output readOut(&mr);
         Detail::read_cells(readOut, cellsMap, &surface_transforms, &digitizationConfig, &barcodeMap);
         return std::make_tuple(std::move(readOut.cells), std::move(readOut.modules));
     }
     
     private:
-
-    vecmem::memory_resource& memoryResource;
-    const detector_type& detector;
+    const detector_t& detector;
     const traccc::digitization_config digitizationConfig;
+    const cell_data_getter_t getter;
     const traccc::geometry surface_transforms;
     const std::map<std::uint64_t, detray::geometry::barcode> barcodeMap;
 };

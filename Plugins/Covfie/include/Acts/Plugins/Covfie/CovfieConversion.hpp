@@ -32,7 +32,7 @@ using builder_backend_t = covfie::backend::strided<
 
 using interpolated_field_t = covfie::field<covfie::backend::clamp<covfie::backend::affine<covfie::backend::linear<builder_backend_t>>>>;
 
-using constant_field_t = covfie::field<covfie::backend::constant<covfie::vector::size3, covfie::vector::float3>>;
+using constant_field_t = covfie::field<covfie::backend::constant<covfie::vector::float3, covfie::vector::float3>>;
 
 /// @brief Creates a covfie field from an interpolated magnetic field.
 /// @param magneticField The acts interpolated magnetic field.
