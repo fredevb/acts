@@ -30,6 +30,9 @@
 #include <memory>
 #include <utility>
 
+// temp
+#include "traccc/io/read_cells.hpp"
+#include "traccc/io/data_format.hpp"
 
 // This code is borrowed from traccc/io/src/csv/read_cells.cpp with minor modifications
 // so that a cells map rather than a file path is needed.
@@ -148,8 +151,7 @@ struct CellDataGetter{
 };
 
 template <typename CellCollection>
-std::map<std::uint64_t, std::vector<traccc::cell>> newCellsMap(const std::map<Acts::GeometryIdentifier, CellCollection>& map, const CellDataGetter<typename CellCollection::value_type>& getter){
-
+std::map<std::uint64_t, std::vector<traccc::cell>> newTracccCellsMap(const std::map<Acts::GeometryIdentifier, CellCollection>& map, const CellDataGetter<typename CellCollection::value_type>& getter){
     std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
     for (const auto& [geometryID, cells] : map){
         std::vector<traccc::cell> tracccCells;
@@ -161,9 +163,9 @@ std::map<std::uint64_t, std::vector<traccc::cell>> newCellsMap(const std::map<Ac
                 static_cast<traccc::scalar>(getter.getTime(cell)),
                 0//tracccModules.size() - 1
             };
-            tracccCells.push_back(tracccCell);
+            tracccCells.push_back(std::move(tracccCell));
         }
-        tracccCellMap.insert({geometryID.value(), tracccCells});
+        tracccCellMap.insert({geometryID.value(), std::move(tracccCells)});
     }
     return tracccCellMap;
 }
@@ -178,7 +180,6 @@ std::map<std::uint64_t, detray::geometry::barcode> getBarcodeMap(const detray::d
     // Construct a map from Acts surface identifiers to Detray barcodes.
     std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
     for (const auto& surface : detector.surfaces()) {
-        std::cout << "source: " << surface.source << std::endl;
         barcode_map[surface.source] = surface.barcode();
     }
     return barcode_map;
@@ -201,14 +202,20 @@ class CellDataConverter{
     detector(det),
     digitizationConfig(getConfig(segs)),
     getter(g),
-    surface_transforms(getSurfaceTransforms(det)),
+    surfaceTransforms(getSurfaceTransforms(det)),
     barcodeMap(getBarcodeMap(det)){}
 
     template <typename host_mr_t, typename CellCollection>
     auto operator()(host_mr_t& mr, std::map<Acts::GeometryIdentifier, CellCollection> map) const{
-        const auto cellsMap = newCellsMap(map, getter);
+        std::cout << "Running Conversion" << std::endl;
+        const auto cellsMap = newTracccCellsMap(map, getter);
+        std::cout << "Created Cells Map" << std::endl;
         traccc::io::cell_reader_output readOut(&mr);
-        Detail::read_cells(readOut, cellsMap, &surface_transforms, &digitizationConfig, &barcodeMap);
+        Detail::read_cells(readOut, cellsMap, &surfaceTransforms, &digitizationConfig, &barcodeMap);
+        //                traccc::io::read_cells(readOut, "/home/frederik/Desktop/CERN-TECH-OTHER/traccc/data/tml_pixels/event000000000-cells.csv",
+        //                               traccc::data_format::csv, &surfaceTransforms,
+        //                               &digitizationConfig, &barcodeMap);
+        std::cout << "Read Cells" << std::endl;
         return std::make_tuple(std::move(readOut.cells), std::move(readOut.modules));
     }
     
@@ -216,7 +223,7 @@ class CellDataConverter{
     const detector_t& detector;
     const traccc::digitization_config digitizationConfig;
     const cell_data_getter_t getter;
-    const traccc::geometry surface_transforms;
+    const traccc::geometry surfaceTransforms;
     const std::map<std::uint64_t, detray::geometry::barcode> barcodeMap;
 };
 

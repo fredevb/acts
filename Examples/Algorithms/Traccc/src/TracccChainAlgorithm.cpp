@@ -125,7 +125,10 @@ const AlgorithmContext& ctx) const {
           std::move(*trackContainer)),
       std::make_shared<Acts::ConstVectorMultiTrajectory>(
           std::move(*trackStateContainer))};
+  
+  std::cout << "Created Container" << std::endl;
 
   m_outputTracks(ctx, std::move(constTracks));
+  std::cout << "Wrote Container" << std::endl;
   return ActsExamples::ProcessCode::SUCCESS;
 }

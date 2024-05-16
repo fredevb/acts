@@ -5,45 +5,17 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
-/*
+
 // Boost.Test include(s).
 #include <boost/test/unit_test.hpp>
 
-// acts include (s)
-#include "Acts/Utilities/Result.hpp"
-
-// traccc plugin
-#include "Acts/Plugins/Traccc/TracccConversion.hpp"
-#include "Acts/EventData/TrackContainer.hpp"
-#include "Acts/EventData/TrackProxy.hpp"
-
-// tracc include (s)
-// algorithms
-#include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
-#include "traccc/clusterization/clusterization_algorithm.hpp"
-#include "traccc/clusterization/spacepoint_formation_algorithm.hpp"
-#include "traccc/finding/finding_algorithm.hpp"
-#include "traccc/fitting/fitting_algorithm.hpp"
-#include "traccc/seeding/seeding_algorithm.hpp"
-#include "traccc/seeding/track_params_estimation.hpp"
-
-// configs
-#include "traccc/finding/finding_config.hpp"
-
-// io
-#include "traccc/io/read_cells.hpp"
-#include "traccc/io/read_digitization_config.hpp"
-#include "traccc/io/read_geometry.hpp"
-#include "traccc/io/utils.hpp"
+// Acts Traccc plugin include(s).
+#include "Acts/Plugins/Traccc/CellConversion.hpp"
+#include "Acts/Plugins/Traccc/TrackConversion.hpp"
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
 #include "detray/detectors/bfield.hpp"
-#include "detray/io/frontend/detector_reader.hpp"
-#include "detray/navigation/navigator.hpp"
-#include "detray/propagator/propagator.hpp"
-#include "detray/propagator/rk_stepper.hpp"
-
 // VecMem include(s).
 #include <vecmem/memory/host_memory_resource.hpp>
 
@@ -57,58 +29,70 @@
 #include <type_traits>
 #include <tuple>
 
-using namespace Acts::TracccConversion;
+using namespace Acts::TracccPlugin;
 
-BOOST_AUTO_TEST_CASE(Traccc_Conversion_Chain) {
-    // Memory resource used by the application.
-    vecmem::host_memory_resource host_mr;
+/*namespace{
 
-    const std::string detectorFile = "/home/frederik/Downloads/traccc-data-v6/tml_detector/trackml-detector.csv";
-    const std::string digitalizationFile = "/home/frederik/Downloads/traccc-data-v6/tml_detector/default-geometric-config-generic.json";
-    const std::string inputDirectory = "/home/frederik/Downloads/traccc-data-v6/tml_pixels/";
-    const std::string eventFile = inputDirectory + "event000000000-cells.csv";
+using detector_t = detray::detector<detray::default_metadata, detray::host_container_types>;
 
-    traccc::data_format format = traccc::data_format::csv;
+Acts::GeometryHierarchyMap<Acts::BinUtility> createSegmentations(){
+    return Acts::GeometryHierarchyMap<Acts::BinUtility>();
+}
 
-    // Read in the geometry.
-    //auto [surface_transforms, barcode_map] = traccc::io::read_geometry(
-    //        detectorFile, traccc::data_format::json);
-    
-    auto detector = readDetector(host_mr, detectorFile);
+struct Cell{
+    int bin0, bin1;
+    double time, activation;
+};
 
-    // Get the geometry.
-    auto [surface_transforms, barcode_map] = getGeometry(detector);
+struct Getter : CellDataGetter<Cell>{
+    double getTime(const Cell& cell){
+        return cell.time;
+    }
+    double getActivation(const Cell& cell){
+        return cell.activation;
+    }
+    int getRow(const Cell& cell){
+        cell.bin0;
+    }
+    int getColumn(const Cell& cell){
+        cell.bin1;
+    }
+};
 
-    using field_t = detray::bfield::const_field_t;
-    const traccc::vector3 field_vec = {0.f, 0.f, 1.0f};
-    const field_t field = detray::bfield::create_const_field(field_vec);
+detector_t createDetrayDetector(){
+    auto det = detector_t();
+    det.add_detector(detray::bfield_detector::create());
+    return det;
+}
 
-    // Read the digitization configuration file
-    auto digitizationConfiguration = traccc::io::read_digitization_config(digitalizationFile);
+std::shared_ptr<const Acts::TrackingGeometry> createTrackingGeometery(){
+    return std::make_shared<const Acts::TrackingGeometry>();
+}
 
-    TracccChainFactory<decltype(detector)> factory;
+}
 
-    const traccc::seedfinder_config finderConfig{};
-    const traccc::spacepoint_grid_config gridConfig{finderConfig};
-    const traccc::seedfilter_config filterConfig{};
-    const typename decltype(factory)::finding_algorithm_t::config_type findingConfig{};
-    const typename decltype(factory)::fitting_algorithm_t::config_type fittingConfig{};
+BOOST_AUTO_TEST_CASE(Traccc_Conversion_Cell) {
+    auto det = createDetrayDetector();
+    auto segs = createSegmentations();
+    Getter getter;
+    CellDataConverter converter(det, segs, getter);
 
-    //auto chain = factory.buildChainHost(host_mr, detector, field, finderConfig, gridConfig, filterConfig, findingConfig, fittingConfig);
+    auto tg = createTrackingGeometery();
+    auto inputData = createActsCellData(tg);
+    vecmem::host_memory_resource mr;
+    auto outputData = createTracccCellData(tg, mr);
+    auto result = converter(inputData, mr);
+    BOOST_TEST(CellDataEqual(result, outputData));
+}*/
 
-    //traccc::io::cell_reader_output readOut(&host_mr);
-
-    // Read the cells from the relevant event file
-    //traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
-
-    // container_types<fitting_result<transform3>, track_state<transform3>>
-    //traccc::track_state_container_types::host result = chain.run(readOut.cells, readOut.modules);
-    //for (std::size_t i = 0; i < result.size(); i++){
-    //    auto c = result[i];
-    //    auto fittingResult = c.header;
-    //    auto trackStates = c.items;
-    //}
-    
+/*BOOST_AUTO_TEST_CASE(Traccc_Conversion_Track) {
+    auto det = createDetrayDetector();
+    auto tg = createTrackingGeometery();
+    auto inputData = createTracccTracks();
+    auto outputData = createActsTracks();
+    auto result;
+    copyTrackContainer(inputData, result, det, tg);
+    BOOST_TEST(TrackDataEqual(outTrackContainer, outputData));
 }*/
 
 // https://github.com/acts-project/traccc/blob/710b62cac11c0dd9e139bd82d7cbafa4bc863b6c/core/include/traccc/utils/algorithm.hpp

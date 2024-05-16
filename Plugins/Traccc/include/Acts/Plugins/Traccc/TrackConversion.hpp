@@ -88,6 +88,7 @@ void copyTrackContainer(const traccc_track_state_container_t& data, Acts::TrackC
         copyFittingResult(fittingResult, track, det, trackingGeometry);
         copyTrackStates(trackStates, track);
     }
+    std::cout << "Copied Track Container!" << std::endl;
 }
 
 }

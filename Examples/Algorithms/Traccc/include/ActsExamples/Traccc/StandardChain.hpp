@@ -136,8 +136,18 @@ class WrappedChain{
     template <typename track_container_t, typename traj_t, template <typename> class holder_t, typename CellCollection>
     void operator()(Acts::TrackContainer<track_container_t, traj_t, holder_t>& out, const std::map<Acts::GeometryIdentifier, CellCollection> map){
         auto [cells, modules] = cellDataConverter(*memoryResource, map);
+        std::cout << "MAP: " << std::endl;
+        for (auto [g, cs] : map){
+            for (auto c : cs){
+                std::cout << "(" << cellDataGetter.getRow(c) << ", " << cellDataGetter.getColumn(c) << ")" << std::endl;
+            }
+        }
+        /*std::cout << "TRACCCMAP: " << std::endl;
+        for (auto cell : cells){
+            std::cout << "(" << cell.channel0 << ", " << cell.channel1 << ")" << std::endl;
+        }*/
         auto res = (*chain)(cells, modules, detector, field);
-        Acts::TracccPlugin::copyTrackContainer(res, out, detector, *trackingGeometry);
+        //Acts::TracccPlugin::copyTrackContainer(res, out, detector, *trackingGeometry);
     }
 
     private:
@@ -200,6 +210,7 @@ class StandardChainHost{
         measurements = clusterizationFunc(vecmem::get_data(cells), vecmem::get_data(modules));
         spacepoints = spacepointFormationFunc(vecmem::get_data(measurements), vecmem::get_data(modules));
         seeds = seedingFunc(spacepoints);
+        std::cout << "Did clustering, spacepoint, and seeding" << std::endl;
 
         const typename field_t::view_t fieldView(field);
 
@@ -207,8 +218,11 @@ class StandardChainHost{
         params = trackParameterEstimationFunc(spacepoints, seeds, fieldView.at(0,0,0));
 
         trackCandidates = findingFunc(detector, fieldView, measurements, params);
+        std::cout << "Found" << std::endl;
         trackStates = fittingFunc(detector, fieldView, trackCandidates);
+        std::cout << "Fitted." << std::endl;
         resolvedTrackStates = resolutionFunc(trackStates);
+        std::cout << "Resolved" << std::endl;
         return resolvedTrackStates;
     }
 
