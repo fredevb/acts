@@ -69,10 +69,8 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
     auto segs = e.second.geometricDigiConfig.segmentation;
     vec.push_back({geoID, segs});
   }
-  std::shared_ptr<const Acts::GeometryHierarchyMap<Acts::BinUtility>> segmentations = std::make_shared<const Acts::GeometryHierarchyMap<Acts::BinUtility>>(vec);
 
-  wrappedChain = std::make_shared<WrappedChain<chain_t>>(m_cfg.trackingGeometry, m_cfg.digitizationConfigs, *m_cfg.field, &mr, chain);
-  // Load geosegs
+  chainAdapter = std::make_shared<ChainAdapter>(m_cfg.trackingGeometry, resource, m_cfg.digitizationConfigs, *m_cfg.field);
 }
 
 
@@ -108,16 +106,29 @@ const AlgorithmContext& ctx) const {
   // Read the cells from the relevant event file
   //traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
 
-  auto trackContainer = std::make_shared<Acts::VectorTrackContainer>();
-  auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
-  TrackContainer tracks(trackContainer, trackStateContainer);
+  const traccc::seedfinder_config finderConfig;
+  const traccc::spacepoint_grid_config gridConfig{finderConfig};
+  const traccc::seedfilter_config filterConfig;
+  const typename finding_algorithm_t::config_type findingConfig;
+  const typename fitting_algorithm_t::config_type fittingConfig;
 
-  (*wrappedChain)(tracks, cellsMap); 
+  // Algorithms
+  traccc::host::clusterization_algorithm ca(*resource);
+  traccc::host::spacepoint_formation_algorithm sf(*resource);
+  traccc::seeding_algorithm sa(finderConfig, gridConfig, filterConfig, *resource);
+  traccc::track_params_estimation tp(*resource);
+  finding_algorithm_t findAlg(findingConfig);
+  fitting_algorithm_t fitAlg(fittingConfig);
+  traccc::greedy_ambiguity_resolution_algorithm res;
+
+  chain_t chain(ca, sf, sa, tp, findAlg, fitAlg, res);
+
+  auto result = chainAdapter->runChain(cellsMap, chain); 
 
   ACTS_INFO("Ran the traccc algorithm!");
-
+  /*
   std::stringstream ss;
-  trackStateContainer->statistics().toStream(ss);
+  result->statistics().toStream(ss);
   ACTS_INFO(ss.str());
 
   ConstTrackContainer constTracks{
@@ -128,7 +139,9 @@ const AlgorithmContext& ctx) const {
   
   std::cout << "Created Container" << std::endl;
 
-  m_outputTracks(ctx, std::move(constTracks));
+  */
+
+  //m_outputTracks(ctx, std::move(result));
   std::cout << "Wrote Container" << std::endl;
   return ActsExamples::ProcessCode::SUCCESS;
 }

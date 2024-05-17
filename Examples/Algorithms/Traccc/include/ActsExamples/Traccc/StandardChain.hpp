@@ -18,6 +18,8 @@
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
+#include "Acts/EventData/TrackContainer.hpp"
+#include "ActsExamples/EventData/Track.hpp"
 
 // Acts examples include(s)
 #include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
@@ -64,6 +66,9 @@
 
 namespace ActsExamples {
 
+
+
+
 auto readDetector(vecmem::memory_resource& mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = ""){
     using detector_type = detray::detector<detray::default_metadata,
                                         detray::host_container_types>;
@@ -82,83 +87,72 @@ auto readDetector(vecmem::memory_resource& mr, const std::string& detectorFilePa
     return std::move(det);
 }
 
-Acts::GeometryHierarchyMap<Acts::BinUtility> getSegmentations(const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccfgs){
-    using elem_t = std::pair<Acts::GeometryIdentifier, Acts::BinUtility>;
-    std::vector<elem_t> vec;
-    for (auto& e : dccfgs.getElements()){
-        vec.push_back({e.first, e.second.geometricDigiConfig.segmentation});
-    }
-    return Acts::GeometryHierarchyMap<Acts::BinUtility>(vec);
+double getTime(const Cluster::Cell& /*cell*/){
+    return 0.;
+}
+double getActivation(const Cluster::Cell& cell){
+    return cell.activation;
+}
+int getRow(const Cluster::Cell& cell){
+    return cell.bin[0];
+}
+int getColumn(const Cluster::Cell& cell){
+    return cell.bin[1];
+}
+Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
+    return dcc.geometricDigiConfig.segmentation;
 }
 
-struct ExampleCellDataGetter : public Acts::TracccPlugin::CellDataGetter<Cluster::Cell>{
-    using Cell = Cluster::Cell;
-
-    double getTime(const Cell& /*cell*/) const{
-        return 0.;
-    }
-    double getActivation(const Cell& cell) const{
-        return cell.activation;
-    }
-    int getRow(const Cell& cell) const{
-        return cell.bin[0];
-    }
-    int getColumn(const Cell& cell) const{
-        return cell.bin[1];
-    }
-};
-
-template <typename chain_t>
-class WrappedChain{
+class ChainAdapter{
     public:
 
-    using metadata_t = detray::default_metadata;
-    using container_t = detray::host_container_types;
-    using detector_t = detray::detector<metadata_t, container_t>;
+    using detector_t = detray::detector<detray::default_metadata, detray::host_container_types>;
     using field_t = Acts::CovfieConversion::constant_field_t;
-    using cell_data_converter_t = Acts::TracccPlugin::CellDataConverter<metadata_t, container_t, ExampleCellDataGetter>;
 
-    WrappedChain(std::shared_ptr<const Acts::TrackingGeometry> tg,
-                 const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccfgs,
-                 const Acts::ConstantBField& f,
-                 vecmem::memory_resource* mr,
-                 std::shared_ptr<const chain_t> c):
+    ChainAdapter(
+        std::shared_ptr<const Acts::TrackingGeometry> tg,
+        std::shared_ptr<vecmem::memory_resource> mr,
+        const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccMap,
+        const Acts::ConstantBField& f)
+        :
         trackingGeometry(tg),
-        memoryResource(mr),
-        chain(c),
-        detector(readDetector(*memoryResource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json")),
+        resource(mr),
+        detector(readDetector(*resource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json")),
         field(Acts::CovfieConversion::covfieField(f)),
-        segmentations(getSegmentations(dccfgs)),
-        cellDataConverter(detector, segmentations, cellDataGetter)
-    {}
+        cellDataConverter(detector, Acts::TracccPlugin::tracccConfig(dccMap, getSegmentation))
+        {}
 
+    template <typename chain_t>
+    auto runChain(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>> map, const chain_t& chain) const{
+        // Convert input data
+        auto tcm = Acts::TracccPlugin::tracccCellsMap(map, getRow, getColumn, getActivation, getTime);
+        auto [cells, modules] = cellDataConverter(resource.get(), tcm);
+        std::cout << "Input converted." << std::endl;
 
-    template <typename track_container_t, typename traj_t, template <typename> class holder_t, typename CellCollection>
-    void operator()(Acts::TrackContainer<track_container_t, traj_t, holder_t>& out, const std::map<Acts::GeometryIdentifier, CellCollection> map){
-        auto [cells, modules] = cellDataConverter(*memoryResource, map);
-        std::cout << "MAP: " << std::endl;
-        for (auto [g, cs] : map){
-            for (auto c : cs){
-                std::cout << "(" << cellDataGetter.getRow(c) << ", " << cellDataGetter.getColumn(c) << ")" << std::endl;
-            }
-        }
-        /*std::cout << "TRACCCMAP: " << std::endl;
-        for (auto cell : cells){
-            std::cout << "(" << cell.channel0 << ", " << cell.channel1 << ")" << std::endl;
-        }*/
-        auto res = (*chain)(cells, modules, detector, field);
-        //Acts::TracccPlugin::copyTrackContainer(res, out, detector, *trackingGeometry);
+        // Run chain
+        auto res = chain(cells, modules, detector, field);
+
+        auto trackContainer = std::make_shared<Acts::VectorTrackContainer>(); //here
+        auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
+        TrackContainer tracks(trackContainer, trackStateContainer);
+        //Acts::TracccPlugin::copyTrackContainer(res, tracks, detector, *trackingGeometry);
+        //std::cout << "Output converted." << std::endl;
+
+        ConstTrackContainer constTracks{
+            std::make_shared<Acts::ConstVectorTrackContainer>(std::move(*trackContainer)),
+            std::make_shared<Acts::ConstVectorMultiTrajectory>(std::move(*trackStateContainer))
+            };
+        return constTracks;
     }
 
     private:
+
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
-    vecmem::memory_resource* memoryResource;
-    std::shared_ptr<const chain_t> chain;
-    const ExampleCellDataGetter cellDataGetter;
+    std::shared_ptr<vecmem::memory_resource> resource;
+    const traccc::digitization_config digitalizationConfig;
     const detector_t detector;
     const field_t field;
-    const Acts::GeometryHierarchyMap<Acts::BinUtility> segmentations;
-    const cell_data_converter_t cellDataConverter;
+    const Acts::TracccPlugin::CellDataConverter cellDataConverter;
 };
 
 
@@ -207,23 +201,26 @@ class StandardChainHost{
         typename fitting_func_t::output_type trackStates{&mr};
         typename resolution_func_t::output_type resolvedTrackStates{&mr};
 
-        measurements = clusterizationFunc(vecmem::get_data(cells), vecmem::get_data(modules));
+        measurements = clusterizationFunc(vecmem::get_data(cells), vecmem::get_data(modules)); //HERE, note gcda error in python script at the start. (different behaviour on full clean build?)
+        std::cout << "Clustered." << std::endl;
         spacepoints = spacepointFormationFunc(vecmem::get_data(measurements), vecmem::get_data(modules));
+        std::cout << "Spacepointed." << std::endl;
         seeds = seedingFunc(spacepoints);
-        std::cout << "Did clustering, spacepoint, and seeding" << std::endl;
+        std::cout << "Seeded." << std::endl;
 
         const typename field_t::view_t fieldView(field);
 
         //static_assert(std::is_same<field_t, typename detray::bfield::const_field_t>::value, "Currently, traccc expects a constant field.");
-        params = trackParameterEstimationFunc(spacepoints, seeds, fieldView.at(0,0,0));
+        params = trackParameterEstimationFunc(spacepoints, seeds, traccc::vector3{0.f, 0.f, 1.f}); //fieldView.at(0.f,0.f,0.f
 
-        trackCandidates = findingFunc(detector, fieldView, measurements, params);
-        std::cout << "Found" << std::endl;
-        trackStates = fittingFunc(detector, fieldView, trackCandidates);
+        trackCandidates = findingFunc(detector, field, measurements, params); //here
+        std::cout << "Found." << std::endl;
+        trackStates = fittingFunc(detector, field, trackCandidates);
         std::cout << "Fitted." << std::endl;
         resolvedTrackStates = resolutionFunc(trackStates);
-        std::cout << "Resolved" << std::endl;
+        std::cout << "Resolved." << std::endl;
         return resolvedTrackStates;
+        //return 0;
     }
 
     const clusterization_func_t clusterizationFunc;

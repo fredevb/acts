@@ -86,25 +86,6 @@ const Config& config() const { return m_cfg; }
 
 private:
 
-chain_t build(){       
-    const traccc::seedfinder_config finderConfig;
-    const traccc::spacepoint_grid_config gridConfig{finderConfig};
-    const traccc::seedfilter_config filterConfig;
-    const typename finding_algorithm_t::config_type findingConfig;
-    const typename fitting_algorithm_t::config_type fittingConfig;
-    // Algorithms
-    traccc::host::clusterization_algorithm ca(mr);
-    traccc::host::spacepoint_formation_algorithm sf(mr);
-    traccc::seeding_algorithm sa(finderConfig, gridConfig, filterConfig, mr);
-    traccc::track_params_estimation tp(mr);
-    finding_algorithm_t findAlg(findingConfig);
-    fitting_algorithm_t fitAlg(fittingConfig);
-    traccc::greedy_ambiguity_resolution_algorithm res;
-
-    return chain_t(ca, sf, sa, tp, findAlg, fitAlg, res);
-}
-
-
 using CellsMap = std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>;
 
 Config m_cfg;
@@ -113,9 +94,8 @@ ReadDataHandle<CellsMap> m_inputCells{this, "InputCells"};
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
-std::shared_ptr<chain_t> chain = std::make_shared<chain_t>(build());
-vecmem::host_memory_resource mr;
-std::shared_ptr<WrappedChain<chain_t>> wrappedChain;
+std::shared_ptr<vecmem::memory_resource> resource = std::make_shared<vecmem::host_memory_resource>();
+std::shared_ptr<ChainAdapter> chainAdapter;
 
 };
 
