@@ -40,7 +40,7 @@ parser.add_argument(
     "-o",
     help="Output directory",
     type=pathlib.Path,
-    default=pathlib.Path.cwd() / "odd_output",
+    default=pathlib.Path.cwd() / "traccc_output",
 )
 parser.add_argument("--events", "-n", help="Number of events", type=int, default=100)
 parser.add_argument("--skip", "-s", help="Number of events", type=int, default=0)
@@ -148,8 +148,9 @@ rnd = acts.examples.RandomNumbers(seed=args.rnd_seed)
 s = acts.examples.Sequencer(
     events=args.events,
     skip=args.skip,
-    numThreads=1 if args.geant4 else -1,
+    numThreads= 1 if args.geant4 else -1,
     outputDir=str(outputDir),
+    trackFpes=False,
 )
 
 
@@ -253,6 +254,7 @@ addTracccChain(
     digiConfigFile=oddDigiConfig,
     inputCells="cells",
     outputDirRoot=outputDir,
+    outputDirCsv=outputDir,
 )
 
 s.run()

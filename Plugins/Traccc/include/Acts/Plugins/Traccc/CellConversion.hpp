@@ -161,6 +161,19 @@ std::map<std::uint64_t, detray::geometry::barcode> getBarcodeMap(const detray::d
 
 }
 
+/// @brief Converts a geometry ID map to generic cell collection type into a geometry ID map to traccc cell collection.
+/// @tparam CellCollection A collection of cells
+/// @tparam get_row_fn_t a function of the signature CellCollection::value_type -> traccc::channel_id (aka unsigned int)
+/// @tparam get_column_fn_t a function of the signature CellCollection::value_type -> traccc::channel_id (aka unsigned int)
+/// @tparam get_activation_fn_t a function of the signature CellCollection::value_type -> traccc::scalar (aka float)
+/// @tparam get_time_fn a function of the signature CellCollection::value_type -> traccc::scalar (aka float)
+/// @param map Map from geometry ID to its cell data
+/// @param getRow gets the row of the cell
+/// @param getColumn gets the column of the cell
+/// @param getActivation gets the activation of the cell
+/// @param getTime gets the time stamp of the cell
+/// @note The function sets the module link of the cells in the output to 0.
+/// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
 template <typename CellCollection, typename get_row_fn_t, typename get_column_fn_t, typename get_activation_fn_t, typename get_time_fn>
 std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
     const std::map<Acts::GeometryIdentifier, CellCollection>& map,
@@ -175,10 +188,10 @@ std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
         for (const auto& cell : cells){
             tracccCells.push_back(
                 traccc::cell{
-                    static_cast<traccc::channel_id>(getRow(cell)),
-                    static_cast<traccc::channel_id>(getColumn(cell)),        
-                    static_cast<traccc::scalar>(getActivation(cell)),
-                    static_cast<traccc::scalar>(getTime(cell)),
+                    getRow(cell),
+                    getColumn(cell),        
+                    getActivation(cell),
+                    getTime(cell),
                     0
                 }
             );

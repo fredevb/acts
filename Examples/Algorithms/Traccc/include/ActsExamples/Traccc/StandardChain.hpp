@@ -87,17 +87,23 @@ auto readDetector(vecmem::memory_resource& mr, const std::string& detectorFilePa
     return std::move(det);
 }
 
-double getTime(const Cluster::Cell& /*cell*/){
-    return 0.;
+float getTime(const Cluster::Cell& /*cell*/){
+    return 0.f;
 }
-double getActivation(const Cluster::Cell& cell){
-    return cell.activation;
+float getActivation(const Cluster::Cell& cell){
+    return static_cast<float>(cell.activation);
 }
-int getRow(const Cluster::Cell& cell){
-    return cell.bin[0];
+unsigned int getRow(const Cluster::Cell& cell){
+    if (cell.bin[0] > UINT_MAX) {
+        throw std::runtime_error("Overflow will occur when casting to unsigned int.");
+    }
+    return static_cast<unsigned int>(cell.bin[0]);
 }
-int getColumn(const Cluster::Cell& cell){
-    return cell.bin[1];
+unsigned int getColumn(const Cluster::Cell& cell){
+        if (cell.bin[0] > UINT_MAX) {
+        throw std::runtime_error("Overflow will occur when casting to unsigned int.");
+    }
+    return static_cast<unsigned int>(cell.bin[1]);
 }
 Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
     return dcc.geometricDigiConfig.segmentation;
@@ -111,32 +117,30 @@ class ChainAdapter{
 
     ChainAdapter(
         std::shared_ptr<const Acts::TrackingGeometry> tg,
-        std::shared_ptr<vecmem::memory_resource> mr,
         const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccMap,
         const Acts::ConstantBField& f)
         :
         trackingGeometry(tg),
-        resource(mr),
-        detector(readDetector(*resource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json")),
+        detector(readDetector(resource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json")),
         field(Acts::CovfieConversion::covfieField(f)),
         cellDataConverter(detector, Acts::TracccPlugin::tracccConfig(dccMap, getSegmentation))
         {}
 
     template <typename chain_t>
-    auto runChain(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>> map, const chain_t& chain) const{
+    auto runChain(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>> map, const chain_t& chain, vecmem::host_memory_resource* mr) const{
         // Convert input data
         auto tcm = Acts::TracccPlugin::tracccCellsMap(map, getRow, getColumn, getActivation, getTime);
-        auto [cells, modules] = cellDataConverter(resource.get(), tcm);
+        auto [cells, modules] = cellDataConverter(mr, tcm);
         std::cout << "Input converted." << std::endl;
 
         // Run chain
-        auto res = chain(cells, modules, detector, field);
+        auto res = chain(cells, modules, detector, field, mr);
 
-        auto trackContainer = std::make_shared<Acts::VectorTrackContainer>(); //here
+        auto trackContainer = std::make_shared<Acts::VectorTrackContainer>();
         auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
         TrackContainer tracks(trackContainer, trackStateContainer);
-        //Acts::TracccPlugin::copyTrackContainer(res, tracks, detector, *trackingGeometry);
-        //std::cout << "Output converted." << std::endl;
+        Acts::TracccPlugin::copyTrackContainer(res, tracks, detector, *trackingGeometry);
+        std::cout << "Output converted." << std::endl;
 
         ConstTrackContainer constTracks{
             std::make_shared<Acts::ConstVectorTrackContainer>(std::move(*trackContainer)),
@@ -147,8 +151,9 @@ class ChainAdapter{
 
     private:
 
+    vecmem::host_memory_resource resource;
+
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
-    std::shared_ptr<vecmem::memory_resource> resource;
     const traccc::digitization_config digitalizationConfig;
     const detector_t detector;
     const field_t field;
@@ -167,13 +172,13 @@ template <typename clusterization_func_t,
 class StandardChainHost{
     public:
     StandardChainHost(
-        const clusterization_func_t& cFunc,
-        const spacepoint_formation_func_t& sfFunc,
-        const seeding_func_t& sFunc,
-        const track_params_estimation_func_t& tpeFunc,
-        const finding_func_t& findFunc,
-        const fitting_func_t& fitFunc,
-        const resolution_func_t& resFunc
+        const clusterization_func_t&& cFunc,
+        const spacepoint_formation_func_t&& sfFunc,
+        const seeding_func_t&& sFunc,
+        const track_params_estimation_func_t&& tpeFunc,
+        const finding_func_t&& findFunc,
+        const fitting_func_t&& fitFunc,
+        const resolution_func_t&& resFunc
         ): 
         clusterizationFunc(cFunc),
         spacepointFormationFunc(sfFunc),
@@ -188,18 +193,17 @@ class StandardChainHost{
         const traccc::cell_collection_types::host& cells,
         const traccc::cell_module_collection_types::host& modules,
         const detector_t& detector,
-        const field_t& field) 
+        const field_t& field,
+        vecmem::host_memory_resource* mr) 
         const {
 
-        vecmem::host_memory_resource mr;
-
-        typename clusterization_func_t::output_type measurements{&mr};
-        typename spacepoint_formation_func_t::output_type spacepoints{&mr};
-        typename seeding_func_t::output_type seeds{&mr};
-        typename track_params_estimation_func_t::output_type params{&mr};
-        typename finding_func_t::output_type trackCandidates{&mr};
-        typename fitting_func_t::output_type trackStates{&mr};
-        typename resolution_func_t::output_type resolvedTrackStates{&mr};
+        typename clusterization_func_t::output_type measurements{mr};
+        typename spacepoint_formation_func_t::output_type spacepoints{mr};
+        typename seeding_func_t::output_type seeds{mr};
+        typename track_params_estimation_func_t::output_type params{mr};
+        typename finding_func_t::output_type trackCandidates{mr};
+        typename fitting_func_t::output_type trackStates{mr};
+        typename resolution_func_t::output_type resolvedTrackStates{mr};
 
         measurements = clusterizationFunc(vecmem::get_data(cells), vecmem::get_data(modules)); //HERE, note gcda error in python script at the start. (different behaviour on full clean build?)
         std::cout << "Clustered." << std::endl;
@@ -211,16 +215,16 @@ class StandardChainHost{
         const typename field_t::view_t fieldView(field);
 
         //static_assert(std::is_same<field_t, typename detray::bfield::const_field_t>::value, "Currently, traccc expects a constant field.");
-        params = trackParameterEstimationFunc(spacepoints, seeds, traccc::vector3{0.f, 0.f, 1.f}); //fieldView.at(0.f,0.f,0.f
+        params = trackParameterEstimationFunc(spacepoints, seeds, fieldView.at(0.f,0.f,0.f));//traccc::vector3{0.f, 0.f, 1.f}); //fieldView.at(0.f,0.f,0.f
+        std::cout << "Params." << std::endl;
 
-        trackCandidates = findingFunc(detector, field, measurements, params); //here
+        trackCandidates = findingFunc(detector, field, measurements, params); //here really
         std::cout << "Found." << std::endl;
         trackStates = fittingFunc(detector, field, trackCandidates);
         std::cout << "Fitted." << std::endl;
         resolvedTrackStates = resolutionFunc(trackStates);
         std::cout << "Resolved." << std::endl;
         return resolvedTrackStates;
-        //return 0;
     }
 
     const clusterization_func_t clusterizationFunc;

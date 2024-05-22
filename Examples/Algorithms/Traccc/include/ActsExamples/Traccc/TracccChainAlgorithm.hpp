@@ -47,8 +47,8 @@ namespace ActsExamples {
 class TracccChainAlgorithm final : public IAlgorithm {
 public:
 struct Config {
-    std::string inputCells = "cells";
-    std::string outputTracks = "ambi_tracks";
+    std::string inputCells;
+    std::string outputTracks;
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry = nullptr;
     std::shared_ptr<const Acts::ConstantBField> field;
     Acts::GeometryHierarchyMap<DigiComponentsConfig> digitizationConfigs;
@@ -57,7 +57,7 @@ struct Config {
 using field_t = Acts::CovfieConversion::constant_field_t;
 
 using detector_t = detray::detector<detray::default_metadata, detray::host_container_types>;
-using stepper_t = detray::rk_stepper<typename detray::bfield::const_field_t::view_t, typename detector_t::transform3, detray::constrained_step<>>;
+using stepper_t = detray::rk_stepper<typename detray::bfield::const_field_t::view_t, typename detector_t::algebra_type, detray::constrained_step<>>;
 using navigator_t = detray::navigator<const detector_t>;
 using finding_algorithm_t = traccc::finding_algorithm<stepper_t, navigator_t>;
 using fitter_t = traccc::kalman_fitter<stepper_t, navigator_t>;
@@ -94,8 +94,7 @@ ReadDataHandle<CellsMap> m_inputCells{this, "InputCells"};
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
-std::shared_ptr<vecmem::memory_resource> resource = std::make_shared<vecmem::host_memory_resource>();
-std::shared_ptr<ChainAdapter> chainAdapter;
+std::shared_ptr<const ChainAdapter> chainAdapter;
 
 };
 

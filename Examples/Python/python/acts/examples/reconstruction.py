@@ -2075,13 +2075,14 @@ def addTracccChain(
     s: acts.examples.Sequencer,
     trackingGeometry: acts.TrackingGeometry,
     field: acts.MagneticFieldProvider,
-    digiConfigFile,
+    digiConfigFile: Union[Path, str],
     inputCells:  Optional[str]= "cells", #"InputCells",
-    outputTracks: Optional[str]="ambi_tracks",
+    outputTracks: Optional[str]="traccc_tracks",
     outputDirRoot: Optional[Union[Path, str]] = None,
     outputDirCsv: Optional[Union[Path, str]] = None,
     logLevel: Optional[acts.logging.Level] = None,
     writeTrajectories: bool = True,
+    writeCovMat=False,
 ) -> None:
     from acts.examples import TracccChainAlgorithm
 
@@ -2099,16 +2100,34 @@ def addTracccChain(
     )
 
     s.addAlgorithm(alg)
+    s.addWhiteboardAlias("tracks", alg.config.outputTracks)
 
-    #addTrackWriters(
-    #    s,
-    #    name="tracccChain",
-    #    tracks=outputTracks,
-    #    outputDirCsv=outputDirCsv,
-    #    outputDirRoot=outputDirRoot,
-    #    writeStates=writeTrajectories,
-    #    writeSummary=writeTrajectories,
-    #    writeCKFperformance=True,
-    #    logLevel=logLevel,
-    #)
+    matchAlg = acts.examples.TrackTruthMatcher(
+        level=customLogLevel(),
+        inputTracks=alg.config.outputTracks,
+        inputParticles="particles",
+        inputMeasurementParticlesMap="measurement_particles_map",
+        outputTrackParticleMatching="traccc_track_particle_matching",
+        outputParticleTrackMatching="traccc_particle_track_matching",
+    )
+    s.addAlgorithm(matchAlg)
+    s.addWhiteboardAlias(
+        "track_particle_matching", matchAlg.config.outputTrackParticleMatching
+    )
+    s.addWhiteboardAlias(
+        "particle_track_matching", matchAlg.config.outputParticleTrackMatching
+    )
+
+    addTrackWriters(
+        s,
+        name="traccc",
+        tracks=alg.config.outputTracks,
+        outputDirCsv=outputDirCsv,
+        outputDirRoot=outputDirRoot,
+        writeStates=writeTrajectories,
+        writeSummary=writeTrajectories,
+        writeCKFperformance=False,
+        logLevel=logLevel,
+        writeCovMat=writeCovMat,
+    )
     return s

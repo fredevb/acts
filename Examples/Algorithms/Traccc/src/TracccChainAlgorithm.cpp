@@ -61,23 +61,14 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
   m_inputCells.initialize(m_cfg.inputCells);
   m_outputTracks.initialize(m_cfg.outputTracks);
 
-  using elem_t = std::pair<Acts::GeometryIdentifier, Acts::BinUtility>;
-  
-  std::vector<elem_t> vec;
-  for (auto& e : m_cfg.digitizationConfigs.getElements()){
-    auto geoID = e.first;
-    auto segs = e.second.geometricDigiConfig.segmentation;
-    vec.push_back({geoID, segs});
-  }
-
-  chainAdapter = std::make_shared<ChainAdapter>(m_cfg.trackingGeometry, resource, m_cfg.digitizationConfigs, *m_cfg.field);
+  chainAdapter = std::make_shared<const ChainAdapter>(m_cfg.trackingGeometry, m_cfg.digitizationConfigs, *m_cfg.field);
 }
 
 
 ActsExamples::ProcessCode ActsExamples::TracccChainAlgorithm::execute(
 const AlgorithmContext& ctx) const {
   // Read input data
-  const auto& cellsMap = m_inputCells(ctx);
+  const auto cellsMap = m_inputCells(ctx);
 
 
   //TODO: Compile traccc chain here!
@@ -106,6 +97,9 @@ const AlgorithmContext& ctx) const {
   // Read the cells from the relevant event file
   //traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
 
+
+  vecmem::host_memory_resource mr;
+
   const traccc::seedfinder_config finderConfig;
   const traccc::spacepoint_grid_config gridConfig{finderConfig};
   const traccc::seedfilter_config filterConfig;
@@ -113,35 +107,32 @@ const AlgorithmContext& ctx) const {
   const typename fitting_algorithm_t::config_type fittingConfig;
 
   // Algorithms
-  traccc::host::clusterization_algorithm ca(*resource);
-  traccc::host::spacepoint_formation_algorithm sf(*resource);
-  traccc::seeding_algorithm sa(finderConfig, gridConfig, filterConfig, *resource);
-  traccc::track_params_estimation tp(*resource);
+  traccc::host::clusterization_algorithm ca(mr);
+  traccc::host::spacepoint_formation_algorithm sf(mr);
+  traccc::seeding_algorithm sa(finderConfig, gridConfig, filterConfig, mr);
+  traccc::track_params_estimation tp(mr);
   finding_algorithm_t findAlg(findingConfig);
   fitting_algorithm_t fitAlg(fittingConfig);
   traccc::greedy_ambiguity_resolution_algorithm res;
 
-  chain_t chain(ca, sf, sa, tp, findAlg, fitAlg, res);
+  const chain_t chain(
+    std::move(ca),
+    std::move(sf),
+    std::move(sa),
+    std::move(tp),
+    std::move(findAlg),
+    std::move(fitAlg),
+    std::move(res));
 
-  auto result = chainAdapter->runChain(cellsMap, chain); 
+  auto result = chainAdapter->runChain(cellsMap, chain, &mr); 
 
   ACTS_INFO("Ran the traccc algorithm!");
-  /*
+  
   std::stringstream ss;
-  result->statistics().toStream(ss);
+  result.trackStateContainer().statistics().toStream(ss);
   ACTS_INFO(ss.str());
 
-  ConstTrackContainer constTracks{
-      std::make_shared<Acts::ConstVectorTrackContainer>(
-          std::move(*trackContainer)),
-      std::make_shared<Acts::ConstVectorMultiTrajectory>(
-          std::move(*trackStateContainer))};
-  
-  std::cout << "Created Container" << std::endl;
-
-  */
-
-  //m_outputTracks(ctx, std::move(result));
+  m_outputTracks(ctx, std::move(result));
   std::cout << "Wrote Container" << std::endl;
   return ActsExamples::ProcessCode::SUCCESS;
 }
