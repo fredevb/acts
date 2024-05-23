@@ -66,9 +66,6 @@
 
 namespace ActsExamples {
 
-
-
-
 auto readDetector(vecmem::memory_resource& mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = ""){
     using detector_type = detray::detector<detray::default_metadata,
                                         detray::host_container_types>;
@@ -90,23 +87,44 @@ auto readDetector(vecmem::memory_resource& mr, const std::string& detectorFilePa
 float getTime(const Cluster::Cell& /*cell*/){
     return 0.f;
 }
+
 float getActivation(const Cluster::Cell& cell){
     return static_cast<float>(cell.activation);
 }
+
 unsigned int getRow(const Cluster::Cell& cell){
     if (cell.bin[0] > UINT_MAX) {
         throw std::runtime_error("Overflow will occur when casting to unsigned int.");
     }
     return static_cast<unsigned int>(cell.bin[0]);
 }
+
 unsigned int getColumn(const Cluster::Cell& cell){
         if (cell.bin[0] > UINT_MAX) {
         throw std::runtime_error("Overflow will occur when casting to unsigned int.");
     }
     return static_cast<unsigned int>(cell.bin[1]);
 }
+
+
+
 Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
     return dcc.geometricDigiConfig.segmentation;
+}
+
+template <typename detector_t, typename allocator_t>
+auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
+  IndexSourceLinkContainer sourceLinks;
+  MeasurementContainer measurementContainer;
+
+  for (traccc::measurement& m : measurements) {
+    Acts::GeometryIdentifier moduleGeoId(detector.surface(m.surface_link).source);
+    Index measurementIdx = measurementContainer.size();
+    IndexSourceLink sourceLink{moduleGeoId, measurementIdx};
+    sourceLinks.insert(sourceLinks.end(), sourceLink);
+    measurements.push_back(Acts::TracccPlugin::boundVariantMeasurement(m, sourceLink));
+  }
+  return std::make_tuple(std::move(sourceLinks), std::move(measurementContainer));
 }
 
 class ChainAdapter{
@@ -159,8 +177,6 @@ class ChainAdapter{
     const field_t field;
     const Acts::TracccPlugin::CellDataConverter cellDataConverter;
 };
-
-
 
 template <typename clusterization_func_t, 
           typename spacepoint_formation_func_t, 
