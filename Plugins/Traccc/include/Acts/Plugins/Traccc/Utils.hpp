@@ -20,7 +20,7 @@ template <std::size_t N, typename dvector_t>
 Acts::ActsVector<N> newVector(const dvector_t& dvec){
     Acts::ActsVector<N> res;
     for(std::size_t i = 0; i < N; i++){
-        res(i) = static_cast<Acts::ActsScalar>(dvec[0][i]);
+        res(i) = static_cast<Acts::ActsScalar>(dvec[i]);
     }
     return res;
 }

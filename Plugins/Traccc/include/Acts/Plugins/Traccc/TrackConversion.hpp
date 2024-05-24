@@ -29,71 +29,11 @@
 // System include(s)
 #include <memory>
 
-
-
-
-#include "Acts/EventData/Measurement.hpp"
-#include "Acts/EventData/SourceLink.hpp"
-
 namespace Acts::TracccPlugin {
-
-
-
-
-Acts::BoundIndices boundIndex(const traccc::bound_indices tracccBoundIndex){
-    switch (tracccBoundIndex)
-    {
-    case traccc::bound_indices::e_bound_loc0:
-        return Acts::BoundIndices::eBoundLoc0;
-    case traccc::bound_indices::e_bound_loc1:
-        return Acts::BoundIndices::eBoundLoc1;
-    case traccc::bound_indices::e_bound_phi:
-        return Acts::BoundIndices::eBoundPhi;
-    case traccc::bound_indices::e_bound_theta:
-        return Acts::BoundIndices::eBoundTheta;
-    case traccc::bound_indices::e_bound_qoverp:
-        return Acts::BoundIndices::eBoundQOverP;
-    case traccc::bound_indices::e_bound_time:
-        return Acts::BoundIndices::eBoundTime;
-    case traccc::bound_indices::e_bound_size:
-        return Acts::BoundIndices::eBoundSize;
-    default:
-        throw std::runtime_error("Could not convert traccc bound index");
-    }
-}
-
-template <std::size_t dim, typename source_link_t>
-Acts::Measurement<Acts::BoundIndices, dim> measurement(const traccc::measurement& m, const source_link_t& gsl){
-    Acts::SourceLink sl{gsl};
-    auto params = Utils::newVector<dim>(m.local);
-
-    std::array<Acts::BoundIndices, dim> indices;
-    for (unsigned int i = 0; i < dim; i++){
-        indices[i] = boundIndex(traccc::bound_indices(m.subs.get_indices()[i]));
-    }
-    
-    Eigen::DiagonalMatrix<Acts::ActsScalar, dim, dim> cov(Utils::newVector<dim>(m.variance));
-
-    return Acts::Measurement<Acts::BoundIndices, dim>(std::move(sl), indices, params, cov);
-}
-
-template <std::size_t max_dim = 4UL, typename source_link_t>
-Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measurement& m, const source_link_t& gsl){
-    if (max_dim == 0UL){
-        std::string errorMsg = "Invalid/mismatching measurement dimension: " +
-                    std::to_string(m.meas_dim);
-        throw std::runtime_error(errorMsg.c_str());
-    }
-    if (m.meas_dim == max_dim){
-        return measurement<max_dim>(m, gsl);
-    }
-    return boundVariantMeasurement<max_dim-1>(m, gsl);
-}
-
 
 template <typename algebra_t, typename metadata_t, typename container_t>
 auto newParams(const detray::bound_track_parameters<algebra_t>& dparams, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry){
-    Acts::ActsVector<6U> parameterVector = Utils::newVector<6U>(dparams.vector());
+    Acts::ActsVector<6U> parameterVector = Utils::newVector<6U>(dparams.vector()[0]);
     typename Acts::BoundTrackParameters::CovarianceMatrix cov = Utils::newSqaureMatrix<6U>(dparams.covariance());
     Acts::ParticleHypothesis particleHypothesis = Acts::ParticleHypothesis::pion();
 
@@ -120,26 +60,26 @@ void copyFittingResult(const traccc::fitting_result<algebra_t>& source, Acts::Tr
     destination.setReferenceSurface(params.referenceSurface().getSharedPtr());
 }
 
+/// @note will not contain a source link
 template <typename algebra_t, typename metadata_t, typename container_t, typename trajectory_t, std::size_t M>
 void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::TrackStateProxy<trajectory_t, M, false>& destination, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry) {
     auto geoID = Acts::GeometryIdentifier(detector.surface(source.surface_link()).source);
     auto surface = trackingGeometry.findSurface(geoID)->getSharedPtr();
     destination.setReferenceSurface(surface);
 
+    using Parameters = typename Acts::TrackStateProxy<trajectory_t, M, false>::Parameters;
     using Covariance = typename Acts::TrackStateProxy<trajectory_t, M, false>::Covariance;
 
-    destination.predicted() = Utils::newVector<6U>(source.predicted().vector());
+    destination.predicted() = Parameters(Utils::newVector<6U>(source.predicted().vector()[0]).data());
     destination.predictedCovariance() = Covariance(Utils::newSqaureMatrix<6U>(source.predicted().covariance()).data());
 
-    destination.smoothed() = Utils::newVector<6U>(source.smoothed().vector());
+    destination.smoothed() = Parameters(Utils::newVector<6U>(source.smoothed().vector()[0]).data());
     destination.smoothedCovariance() = Covariance(Utils::newSqaureMatrix<6U>(source.smoothed().covariance()).data());
 
-    destination.filtered() = Utils::newVector<6U>(source.filtered().vector());
+    destination.filtered() = Parameters(Utils::newVector<6U>(source.filtered().vector()[0]).data());
     destination.filteredCovariance() = Covariance(Utils::newSqaureMatrix<6U>(source.filtered().covariance()).data());
 
     destination.jacobian() = Covariance(Utils::newSqaureMatrix<6U>(source.jacobian()).data());
-
-    //destination.setUncalibratedSourceLink(Acts::SourceLink(source));
 
     auto typeFlags = destination.typeFlags();
     typeFlags.set(TrackStateFlag::ParameterFlag);
@@ -150,15 +90,9 @@ void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::TrackSta
         typeFlags.set(TrackStateFlag::HoleFlag);
     }
     typeFlags.set(TrackStateFlag::MeasurementFlag);
-
-    //destination.jacobian() = source.jacobian;
-    //destination.pathLength() = source.is_hole
-    //destination.chi2 = source.filtered_chi2 or source.smoothed_chi2?
-    //destination.parameters()
-    //destination.
-    //destination.typeFlags().set(Acts::TrackStateFlag::MeasurementFlag);
 }
 
+/// @note will not contain source links
 template <typename algebra_t, typename metadata_t, typename container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t>
 void copyTrackStates(const vecmem::vector<traccc::track_state<algebra_t>>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& destination, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry){
     for (const auto& tstate : source){
@@ -167,8 +101,9 @@ void copyTrackStates(const vecmem::vector<traccc::track_state<algebra_t>>& sourc
     }
 }
 
-template <typename traccc_track_state_container_t, typename track_container_t, typename traj_t, template <typename> class holder_t, typename metadata_t, typename container_t>
-void copyTrackContainer(const traccc_track_state_container_t& data, Acts::TrackContainer<track_container_t, traj_t, holder_t>& trackContainer, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry) {
+/// @note will not contain source links
+template <typename traccc_track_state_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
+void copyTrackContainer(const traccc_track_state_container_t& data, Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry) {
 
     for (std::size_t i = 0; i < data.size(); i++) {
         auto e = data[i];

@@ -8,6 +8,7 @@
 
 // Acts examples include(s)
 #include "ActsExamples/Traccc/TracccChainAlgorithm.hpp"
+#include "ActsExamples/Traccc/ExampleChains.hpp"
 
 // Acts include (s)
 #include "Acts/EventData/TrackContainer.hpp"
@@ -61,70 +62,24 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
   m_inputCells.initialize(m_cfg.inputCells);
   m_outputTracks.initialize(m_cfg.outputTracks);
 
-  chainAdapter = std::make_shared<const ChainAdapter>(m_cfg.trackingGeometry, m_cfg.digitizationConfigs, *m_cfg.field);
+  detector_mr = std::make_shared<vecmem::host_memory_resource>();
+  detector = std::make_shared<const detector_t>(ActsExamples::TracccPluginUtils::readDetector(detector_mr.get(), "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
+  field = std::make_shared<const Acts::CovfieConversion::constant_field_t>(Acts::CovfieConversion::covfieField(*m_cfg.field));
+
+  chainRunner = std::make_shared<const StandardChainRunner>(m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs);
 }
 
 
 ActsExamples::ProcessCode ActsExamples::TracccChainAlgorithm::execute(
 const AlgorithmContext& ctx) const {
-  // Read input data
+
   const auto cellsMap = m_inputCells(ctx);
-
-
-  //TODO: Compile traccc chain here!
-  //Remember to update the hard coded filepath that loads the detray detector
-  //Make getCellTime and getCellActivation
-  //Convert to correct Acts::GeometryHeirarchy input
-  //TODO: Load input cellsMap
-  //SETUP WRAPPED CHAIN
-
-  // Get the geometry.
-  //auto [surface_transforms, barcode_map] = getGeometry(detector);
-
-  //const std::string inputDirectory = "/home/frederik/Desktop/CERN-TECH/input/";
- // const std::string digitalizationFile = "/home/frederik/Desktop/CERN-TECH-OTHER/traccc/data/tml_detector/default-geometric-config-generic.json";
- // const std::string eventFile = inputDirectory + "tml_pixels/event000000000-cells.csv";
-  //traccc::data_format format = traccc::data_format::csv;
-
-  // Read the digitization configuration file
-
-  //Error
-  //auto digitizationConfiguration = traccc::io::read_digitization_config(digitalizationFile);
-
-
-  //traccc::io::cell_reader_output readOut(&host_mr);
-
-  // Read the cells from the relevant event file
-  //traccc::io::read_cells(readOut, eventFile, format, &surface_transforms, &digitizationConfiguration, barcode_map.get());
-
 
   vecmem::host_memory_resource mr;
 
-  const traccc::seedfinder_config finderConfig;
-  const traccc::spacepoint_grid_config gridConfig{finderConfig};
-  const traccc::seedfilter_config filterConfig;
-  const typename finding_algorithm_t::config_type findingConfig;
-  const typename fitting_algorithm_t::config_type fittingConfig;
+  auto chain = ExampleChains::buildHost(mr);
 
-  // Algorithms
-  traccc::host::clusterization_algorithm ca(mr);
-  traccc::host::spacepoint_formation_algorithm sf(mr);
-  traccc::seeding_algorithm sa(finderConfig, gridConfig, filterConfig, mr);
-  traccc::track_params_estimation tp(mr);
-  finding_algorithm_t findAlg(findingConfig);
-  fitting_algorithm_t fitAlg(fittingConfig);
-  traccc::greedy_ambiguity_resolution_algorithm res;
-
-  const chain_t chain(
-    std::move(ca),
-    std::move(sf),
-    std::move(sa),
-    std::move(tp),
-    std::move(findAlg),
-    std::move(fitAlg),
-    std::move(res));
-
-  auto result = chainAdapter->runChain(cellsMap, chain, &mr); 
+  auto result = chainRunner->run(cellsMap, *field, chain); 
 
   ACTS_INFO("Ran the traccc algorithm!");
   

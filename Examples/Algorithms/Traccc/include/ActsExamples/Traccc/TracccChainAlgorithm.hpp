@@ -67,7 +67,7 @@ using spacepoint_formation_algorithm_t = traccc::host::spacepoint_formation_algo
 using seeding_algorithm_t = traccc::seeding_algorithm;
 using track_params_estimation_algorithm_t = traccc::track_params_estimation;
 using resolution_algorithm_t = traccc::greedy_ambiguity_resolution_algorithm;
-using chain_t = StandardChainHost<clusterization_algorithm_t, spacepoint_formation_algorithm_t, seeding_algorithm_t, track_params_estimation_algorithm_t, finding_algorithm_t, fitting_algorithm_t, resolution_algorithm_t>;
+//using chain_t = StandardChainHost<clusterization_algorithm_t, spacepoint_formation_algorithm_t, seeding_algorithm_t, track_params_estimation_algorithm_t, finding_algorithm_t, fitting_algorithm_t, resolution_algorithm_t>;
 
 /// Construct the traccc algorithm.
 ///
@@ -94,8 +94,14 @@ ReadDataHandle<CellsMap> m_inputCells{this, "InputCells"};
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
-std::shared_ptr<const ChainAdapter> chainAdapter;
+// memory resources should be declared before detector to ensure order of destructor call.
+std::shared_ptr<vecmem::memory_resource> detector_mr;
+// Same goes for dectector. It should come before the chain runner.
+std::shared_ptr<const detector_t> detector;
 
+std::shared_ptr<const StandardChainRunner> chainRunner;
+
+std::shared_ptr<const Acts::CovfieConversion::constant_field_t> field;
 };
 
 }  // namespace ActsExamples
