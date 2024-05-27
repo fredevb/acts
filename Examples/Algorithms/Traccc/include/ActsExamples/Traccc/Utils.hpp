@@ -175,19 +175,10 @@ class Converter{
 
         Acts::TracccPlugin::makeTracks(ts, tracks, *detector, *trackingGeometry, measurements, sourceLinks);
 
-        std::cout << "final size out: " << tracks.size() << std::endl;
-
-        std::stringstream ss;
-        tracks.trackStateContainer().statistics().toStream(ss);
-        std::cout << ss.str() << std::endl;
-
         ConstTrackContainer constTracks{
             std::make_shared<Acts::ConstVectorTrackContainer>(std::move(*trackContainer)),
             std::make_shared<Acts::ConstVectorMultiTrajectory>(std::move(*trackStateContainer))
             };
-
-            std::cout << "final size out ct: " << constTracks.size() << std::endl;
-
 
         return constTracks;
     }

@@ -87,9 +87,8 @@ const AlgorithmContext& ctx) const {
   result.trackStateContainer().statistics().toStream(ss);
   ACTS_INFO(ss.str());
 
-  std::cout << "final size out out ct: " << result.size() << std::endl;
-
   m_outputTracks(ctx, std::move(result));
   std::cout << "Wrote Container" << std::endl;
   return ActsExamples::ProcessCode::SUCCESS;
+  
 }

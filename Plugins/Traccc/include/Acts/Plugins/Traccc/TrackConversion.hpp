@@ -116,12 +116,9 @@ void makeTrack(
     auto fittingResult = getFittingResult(tracccContainerElement);
     auto trackStates = getTrackStates(tracccContainerElement);
 
-    auto track = trackContainer.makeTrack(); //CHeck the chi2 is not filled. Check where tracks get lost with printing
+    auto track = trackContainer.makeTrack();
 
     copyFittingResult(fittingResult, track, detector, trackingGeometry);
-
-    std::cout << trackContainer.size() << std::endl;
-
 
     // set the track states
     for (const auto& tstate : trackStates){
@@ -137,8 +134,6 @@ void makeTrack(
         auto sourceLink = sourceLinks[idx];
         astate.setUncalibratedSourceLink(sourceLink);
     }
-    std::cout << trackContainer.size() << std::endl;
-
 }
 
 template <typename traccc_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
@@ -152,7 +147,6 @@ void makeTracks(
     for (std::size_t i = 0; i < data.size(); i++) {
         makeTrack(data[i], trackContainer, detector, trackingGeometry, measurements, sourceLinks);
     }
-    std::cout << "final size: " << trackContainer.size() << std::endl;
 }
 
 }
