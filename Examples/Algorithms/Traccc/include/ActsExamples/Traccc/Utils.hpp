@@ -102,21 +102,21 @@ Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
 
 template <typename detector_t, typename allocator_t>
 auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
-    IndexSourceLinkContainer sourceLinks;
-    MeasurementContainer measurementContainer;
+    std::vector<Acts::SourceLink>sourceLinks;
+    std::vector<Acts::Measurement<Acts::BoundIndices, 2>> measurementContainer;
 
     for (const traccc::measurement& m : measurements) 
     {
         Acts::GeometryIdentifier moduleGeoId(detector.surface(m.surface_link).source);
         Index measurementIdx = measurementContainer.size();
-        IndexSourceLink sourceLink{moduleGeoId, measurementIdx};
-        sourceLinks.insert(sourceLinks.end(), sourceLink);
-        measurementContainer.push_back(Acts::TracccPlugin::boundVariantMeasurement(m, sourceLink));
+        IndexSourceLink idxSourceLink{moduleGeoId, measurementIdx};
+        sourceLinks.insert(sourceLinks.end(), Acts::SourceLink{idxSourceLink});
+        measurementContainer.push_back(Acts::TracccPlugin::measurement<2UL>(m, idxSourceLink));
     }
     return std::make_tuple(std::move(sourceLinks), std::move(measurementContainer));
 }
 
-template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
+/*template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
 void setUncalibratedSourceLinks(
     Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer,
     const IndexSourceLinkContainer& sourceLinks){
@@ -131,39 +131,14 @@ void setUncalibratedSourceLinks(
             const IndexSourceLink& isl = *it;
             Acts::SourceLink sl{isl};
             tsc.getTrackState(i).setUncalibratedSourceLink(std::move(sl));
-            tsc.getTrackState(i).setCalibrated
+            //tsc.getTrackState(i).setCalibrated
         }
         else{
             auto msg = "Source link not found for geometry ID " + std::to_string(geoID.value());
             throw std::runtime_error(msg.c_str());
         }
     }
-}
-
-template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
-void setCalibrated(
-    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer,
-    const IndexSourceLinkContainer& sourceLinks){
-    
-    using IndexType = typename Acts::TrackContainer<track_container_t, trajectory_t, holder_t>::IndexType;
-
-    auto& tsc = trackContainer.trackStateContainer();
-    for (IndexType i = 0; i < tsc.size(); i++){
-        const auto geoID = tsc.getTrackState(i).referenceSurface().geometryId();
-        const auto& it = sourceLinks.find(geoID); // the one that also has the correct measurement ID
-        if (it != sourceLinks.end()){
-            const IndexSourceLink& isl = *it;
-            Acts::SourceLink sl{isl};
-            tsc.getTrackState(i).setUncalibratedSourceLink(std::move(sl));
-            tsc.getTrackState(i).setCalibrated
-        }
-        else{
-            auto msg = "Source link not found for geometry ID " + std::to_string(geoID.value());
-            throw std::runtime_error(msg.c_str());
-        }
-    }
-}
-
+}*/
 
 template <typename detector_t>
 class Converter{
@@ -196,15 +171,24 @@ class Converter{
         auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
         TrackContainer tracks(trackContainer, trackStateContainer);
 
-        Acts::TracccPlugin::copyTrackContainer(ts, tracks, *detector, *trackingGeometry);
+        auto [sourceLinks, measurements] = getIndexSourceLinkAndMeasurements(*detector, ms);
 
-        auto [sourceLinks, measurementContainer] = getIndexSourceLinkAndMeasurements(*detector, ms);
-        setSourceLinks(tracks, sourceLinks);
+        Acts::TracccPlugin::makeTracks(ts, tracks, *detector, *trackingGeometry, measurements, sourceLinks);
+
+        std::cout << "final size out: " << tracks.size() << std::endl;
+
+        std::stringstream ss;
+        tracks.trackStateContainer().statistics().toStream(ss);
+        std::cout << ss.str() << std::endl;
 
         ConstTrackContainer constTracks{
             std::make_shared<Acts::ConstVectorTrackContainer>(std::move(*trackContainer)),
             std::make_shared<Acts::ConstVectorMultiTrajectory>(std::move(*trackStateContainer))
             };
+
+            std::cout << "final size out ct: " << constTracks.size() << std::endl;
+
+
         return constTracks;
     }
 

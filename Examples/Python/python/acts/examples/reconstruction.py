@@ -2107,8 +2107,8 @@ def addTracccChain(
         inputTracks=alg.config.outputTracks,
         inputParticles="particles",
         inputMeasurementParticlesMap="measurement_particles_map",
-        outputTrackParticleMatching="traccc_track_particle_matching",
-        outputParticleTrackMatching="traccc_particle_track_matching",
+        outputTrackParticleMatching="track_particle_matching",
+        outputParticleTrackMatching="particle_track_matching",
     )
     s.addAlgorithm(matchAlg)
     s.addWhiteboardAlias(

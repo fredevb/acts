@@ -81,6 +81,8 @@ void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::TrackSta
 
     destination.jacobian() = Covariance(Utils::newSqaureMatrix<6U>(source.jacobian()).data());
 
+    destination.chi2() = source.smoothed_chi2();
+
     auto typeFlags = destination.typeFlags();
     typeFlags.set(TrackStateFlag::ParameterFlag);
     if (surface->surfaceMaterial() != nullptr) {
@@ -92,29 +94,65 @@ void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::TrackSta
     typeFlags.set(TrackStateFlag::MeasurementFlag);
 }
 
-/// @note will not contain source links
-template <typename algebra_t, typename metadata_t, typename container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t>
-void copyTrackStates(const vecmem::vector<traccc::track_state<algebra_t>>& source, Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& destination, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry){
-    for (const auto& tstate : source){
-        auto astate = destination.appendTrackState();
-        copyTrackState(tstate, astate, detector, trackingGeometry);
-    }
+template <typename algebra_t>
+const traccc::fitting_result<algebra_t>& getFittingResult(const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& e){
+    return e.header;
 }
 
-/// @note will not contain source links
-template <typename traccc_track_state_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
-void copyTrackContainer(const traccc_track_state_container_t& data, Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry) {
+template <typename algebra_t>
+const vecmem::vector<traccc::track_state<algebra_t>>& getTrackStates(const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& e){
+    return e.items;
+}
 
-    for (std::size_t i = 0; i < data.size(); i++) {
-        auto e = data[i];
-        auto fittingResult = e.header;
-        auto trackStates = e.items;
+template <typename algebra_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
+void makeTrack(
+    const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& tracccContainerElement, 
+    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer, 
+    const detray::detector<metadata_t, container_t>& detector, 
+    const Acts::TrackingGeometry& trackingGeometry, 
+    const std::vector<Acts::Measurement<Acts::BoundIndices, 2>>& measurements,
+    const std::vector<Acts::SourceLink>& sourceLinks) {
 
-        auto track = trackContainer.makeTrack();
+    auto fittingResult = getFittingResult(tracccContainerElement);
+    auto trackStates = getTrackStates(tracccContainerElement);
 
-        copyFittingResult(fittingResult, track, detector, trackingGeometry);
-        copyTrackStates(trackStates, track, detector, trackingGeometry);
+    auto track = trackContainer.makeTrack(); //CHeck the chi2 is not filled. Check where tracks get lost with printing
+
+    copyFittingResult(fittingResult, track, detector, trackingGeometry);
+
+    std::cout << trackContainer.size() << std::endl;
+
+
+    // set the track states
+    for (const auto& tstate : trackStates){
+        auto astate = track.appendTrackState();
+
+        copyTrackState(tstate, astate, detector, trackingGeometry);
+
+        auto idx = tstate.get_measurement().measurement_id;
+
+        auto& measurement = measurements[idx];
+        astate.setCalibrated(measurement);
+
+        auto sourceLink = sourceLinks[idx];
+        astate.setUncalibratedSourceLink(sourceLink);
     }
+    std::cout << trackContainer.size() << std::endl;
+
+}
+
+template <typename traccc_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
+void makeTracks(
+    const traccc_container_t& data, 
+    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer, 
+    const detray::detector<metadata_t, container_t>& detector, 
+    const Acts::TrackingGeometry& trackingGeometry, 
+    const std::vector<Acts::Measurement<Acts::BoundIndices, 2>>& measurements, 
+    const std::vector<Acts::SourceLink>& sourceLinks) {
+    for (std::size_t i = 0; i < data.size(); i++) {
+        makeTrack(data[i], trackContainer, detector, trackingGeometry, measurements, sourceLinks);
+    }
+    std::cout << "final size: " << trackContainer.size() << std::endl;
 }
 
 }
