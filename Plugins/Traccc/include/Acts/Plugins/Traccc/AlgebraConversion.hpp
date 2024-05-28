@@ -14,8 +14,9 @@
 // System include(s)
 #include <cstddef>
 
-namespace Acts::TracccPlugin::Utils {
+namespace Acts::TracccPlugin::Detail {
 
+/// @brief Creates a new Acts vector from another vector type.
 template <std::size_t N, typename dvector_t>
 Acts::ActsVector<N> newVector(const dvector_t& dvec){
     Acts::ActsVector<N> res;
@@ -24,7 +25,7 @@ Acts::ActsVector<N> newVector(const dvector_t& dvec){
     }
     return res;
 }
-
+/// @brief Creates a new Acts square matrix from another square matrix type.
 template <std::size_t N, typename matrixNxN_t>
 Acts::ActsSquareMatrix<N> newSqaureMatrix(const matrixNxN_t& mat){
     Acts::ActsSquareMatrix<N> res;

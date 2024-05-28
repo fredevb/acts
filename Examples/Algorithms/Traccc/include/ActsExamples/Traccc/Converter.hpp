@@ -9,6 +9,7 @@
 #pragma once
 
 // Plugin include(s)
+#include "Acts/Plugins/Traccc/Utils.hpp"
 #include "Acts/Plugins/Traccc/CellConversion.hpp"
 #include "Acts/Plugins/Traccc/TrackConversion.hpp"
 #include "Acts/Plugins/Traccc/MeasurementConversion.hpp"
@@ -36,6 +37,7 @@
 #include "traccc/finding/finding_config.hpp"
 #include "traccc/edm/cell.hpp"
 #include "traccc/edm/measurement.hpp"
+#include "traccc/io/digitization_config.hpp"
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
@@ -111,34 +113,58 @@ auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::ve
         Index measurementIdx = measurementContainer.size();
         IndexSourceLink idxSourceLink{moduleGeoId, measurementIdx};
         sourceLinks.insert(sourceLinks.end(), Acts::SourceLink{idxSourceLink});
-        measurementContainer.push_back(Acts::TracccPlugin::measurement<2UL>(m, idxSourceLink));
+        measurementContainer.push_back(Acts::TracccPlugin::measurement<2UL>(m, Acts::SourceLink{idxSourceLink}));
     }
     return std::make_tuple(std::move(sourceLinks), std::move(measurementContainer));
 }
 
-/*template <typename track_container_t, typename trajectory_t, template <typename> class holder_t>
-void setUncalibratedSourceLinks(
-    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer,
-    const IndexSourceLinkContainer& sourceLinks){
-    
-    using IndexType = typename Acts::TrackContainer<track_container_t, trajectory_t, holder_t>::IndexType;
-
-    auto& tsc = trackContainer.trackStateContainer();
-    for (IndexType i = 0; i < tsc.size(); i++){
-        const auto geoID = tsc.getTrackState(i).referenceSurface().geometryId();
-        const auto& it = sourceLinks.find(geoID); // also needs to be the one that also has the correct measurement ID
-        if (it != sourceLinks.end()){
-            const IndexSourceLink& isl = *it;
-            Acts::SourceLink sl{isl};
-            tsc.getTrackState(i).setUncalibratedSourceLink(std::move(sl));
-            //tsc.getTrackState(i).setCalibrated
+/// @brief Converts a "geometry ID -> generic cell collection type" map to a "geometry ID -> traccc cell collection" map.
+/// @note The function sets the module link of the cells in the output to 0.
+/// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
+template <typename CellCollection, typename get_row_fn_t, typename get_column_fn_t, typename get_activation_fn_t, typename get_time_fn>
+std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
+    const std::map<Acts::GeometryIdentifier, CellCollection>& map,
+    const get_row_fn_t& getRow,
+    const get_column_fn_t& getColumn,
+    const get_activation_fn_t& getActivation,
+    const get_time_fn& getTime)
+    {
+    std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
+    for (const auto& [geometryID, cells] : map){
+        std::vector<traccc::cell> tracccCells;
+        for (const auto& cell : cells){
+            tracccCells.push_back(
+                traccc::cell{
+                    getRow(cell),
+                    getColumn(cell),        
+                    getActivation(cell),
+                    getTime(cell),
+                    0
+                }
+            );
         }
-        else{
-            auto msg = "Source link not found for geometry ID " + std::to_string(geoID.value());
-            throw std::runtime_error(msg.c_str());
-        }
+        tracccCellMap.insert({geometryID.value(), std::move(tracccCells)});
     }
-}*/
+    return tracccCellMap;
+}
+
+/// @brief Creates a traccc digitalization config from an Acts geometry hierarchy map
+/// that contains the digitization configuration.
+/// @param config the Acts geometry hierarchy map that contains the digitization configuration.
+/// @param getSegmentation a function that gets the segmentation from an item in the geometry hierarchy map.
+/// @return a traccc digitization config.
+template <typename data_t, typename get_segmentation_fn_t>
+traccc::digitization_config tracccConfig(
+    const Acts::GeometryHierarchyMap<data_t>& config,
+    const get_segmentation_fn_t& getSegmentation){
+    using elem_t = std::pair<Acts::GeometryIdentifier, traccc::module_digitization_config>;
+    std::vector<elem_t> vec;
+    for (auto& e : config.getElements()){
+        vec.push_back({e.first, traccc::module_digitization_config{getSegmentation(e.second)}});
+    }
+    return traccc::digitization_config(vec);
+}
+
 
 template <typename detector_t>
 class Converter{
@@ -151,17 +177,12 @@ class Converter{
         const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccMap):
         trackingGeometry(tg),
         detector(det),
-        cellDataConverter(*detector, Acts::TracccPlugin::tracccConfig(dccMap, getSegmentation))
+        cellDataConverter(*detector, Acts::TracccPlugin::Utils::tracccConfig(dccMap, getSegmentation))
     {}
 
     auto convertInput(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>> map, vecmem::memory_resource* mr) const {
-        auto tcm = Acts::TracccPlugin::tracccCellsMap(
-            map, 
-            getRow, 
-            getColumn, 
-            getActivation, 
-            getTime
-        );
+        auto tcm = Acts::TracccPlugin::Utils::tracccCellsMap(
+            map);
         return cellDataConverter(mr, tcm);
     }
 

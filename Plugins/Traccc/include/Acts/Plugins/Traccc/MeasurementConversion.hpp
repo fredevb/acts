@@ -9,7 +9,7 @@
 #pragma once
 
 // Plugin include(s)
-#include "Acts/Plugins/Traccc/Utils.hpp"
+#include "Acts/Plugins/Traccc/AlgebraConversion.hpp"
 
 // Acts include(s)
 #include "Acts/Geometry/GeometryIdentifier.hpp"
@@ -33,6 +33,9 @@
 
 namespace Acts::TracccPlugin {
 
+/// @brief Converts a traccc bound index to an Acts bound index.
+/// @param tracccBoundIndex the traccc bound index.
+/// @return The Acts bound index.
 Acts::BoundIndices boundIndex(const traccc::bound_indices tracccBoundIndex){
     switch (tracccBoundIndex)
     {
@@ -55,24 +58,32 @@ Acts::BoundIndices boundIndex(const traccc::bound_indices tracccBoundIndex){
     }
 }
 
-template <std::size_t dim, typename source_link_t>
-Acts::Measurement<Acts::BoundIndices, dim> measurement(const traccc::measurement& m, const source_link_t& gsl){
-    Acts::SourceLink sl{gsl};
-    auto params = Utils::newVector<dim>(m.local);
-
+/// @brief Creates an Acts measurement from a traccc measurement.
+/// @tparam dim the number of dimensions of the measurement (subspace size).
+/// @param m the traccc measurement.
+/// @param sl the Acts source link.
+/// @return an Acts measurementwith data copied from the traccc measurement.
+template <std::size_t dim>
+Acts::Measurement<Acts::BoundIndices, dim> measurement(const traccc::measurement& m, const Acts::SourceLink sl){
+    auto params = Detail::newVector<dim>(m.local);
     std::array<Acts::BoundIndices, dim> indices;
     for (unsigned int i = 0; i < dim; i++){
         indices[i] = boundIndex(traccc::bound_indices(m.subs.get_indices()[i]));
     }
-    
-    auto cov = Eigen::DiagonalMatrix<Acts::ActsScalar, static_cast<int>(dim)>(Utils::newVector<dim>(m.variance)).toDenseMatrix();
-
+    auto cov = Eigen::DiagonalMatrix<Acts::ActsScalar, static_cast<int>(dim)>(Detail::newVector<dim>(m.variance)).toDenseMatrix();
     return Acts::Measurement<Acts::BoundIndices, dim>(std::move(sl), indices, params, cov);
 }
 
-
-template <std::size_t max_dim = 4UL, typename source_link_t>
-Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measurement& m, const source_link_t& gsl){
+/// @brief Creates an Acts bound variant measurement from a traccc measurement.
+/// Using recursion, the functions checks the dimension of the traccc measurement 
+/// to determine the dimension of the Acts measurement that the bound variant measurement should hold.
+/// The dimension must lie between [0; max_dim].
+/// @tparam max_dim the largest possible dimension of any measurement type in the variant (default = 4)
+/// @param m the traccc measurement.
+/// @param sl the Acts source link.
+/// @return an Acts bound variant measurement with data copied from the traccc measurement.
+template <std::size_t max_dim = 4UL>
+Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measurement& m, const Acts::SourceLink sl){
     if constexpr (max_dim == 0UL){
         std::string errorMsg = "Invalid/mismatching measurement dimension: " +
                     std::to_string(m.meas_dim);
@@ -80,9 +91,9 @@ Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measurement&
     }
     else{
         if (m.meas_dim == max_dim){
-            return measurement<max_dim>(m, gsl);
+            return measurement<max_dim>(m, sl);
         }
-        return boundVariantMeasurement<max_dim-1>(m, gsl);
+        return boundVariantMeasurement<max_dim-1>(m, sl);
     }
 }
 

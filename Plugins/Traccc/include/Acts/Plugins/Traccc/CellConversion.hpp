@@ -99,12 +99,39 @@ traccc::cell_module get_module(const std::uint64_t geometry_id,
     return result;
 }
 
-void read_cells(
-    traccc::io::cell_reader_output& out,
+}
+
+namespace Acts::TracccPlugin{
+
+/// @brief Creates an map from Acts geometry ID (value) to detray barcode
+/// by only using the information contained in the detray detector.
+/// @param detector the detray detector.
+/// @return A map: geometry ID value type -> detray geometry barcode.
+template <typename metadata_t, typename container_t>
+std::map<std::uint64_t, detray::geometry::barcode> getBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
+    // Construct a map from Acts surface identifiers to Detray barcodes.
+    std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
+    for (const auto& surface : detector.surfaces()) {
+        barcode_map[surface.source] = surface.barcode();
+    }
+    return barcode_map;
+}
+
+/// @brief Converts a geometry ID -> traccc cells map to traccc cells and modules.
+/// @param mr The memory resource to use.
+/// @param cellsMap A map from Acts geometry ID (value) to traccc cell.
+/// @param geom The traccc geometry 
+/// @param dconfig The traccc digitization configuration.
+/// @param barcode_map A map from Acts geometry IDs (value) to detray barcodes.
+/// @return A tuple containing the traccc cells (first item) and traccc modules (second item).
+auto createCellsAndModules(
+    vecmem::memory_resource* mr,
     std::map<std::uint64_t, std::vector<traccc::cell>> cellsMap,
     const traccc::geometry* geom,
     const traccc::digitization_config* dconfig,
     const std::map<std::uint64_t, detray::geometry::barcode>* barcode_map) {
+
+    traccc::io::cell_reader_output out(mr);
 
     // Sort the cells. Deduplication or not, they do need to be sorted.
     for (auto& [_, cells] : cellsMap) {
@@ -136,103 +163,7 @@ void read_cells(
             out.cells.back().module_link = out.modules.size() - 1;
         }
     }
+    return std::make_tuple(std::move(out.cells), std::move(out.modules));
 }
-
-}
-
-namespace Acts::TracccPlugin{
-
-namespace{
-
-template <typename metadata_t, typename container_t>
-traccc::geometry getSurfaceTransforms(const detray::detector<metadata_t, container_t>& detector) {
-    return traccc::io::alt_read_geometry(detector);
-}
-
-template <typename metadata_t, typename container_t>
-std::map<std::uint64_t, detray::geometry::barcode> getBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
-    // Construct a map from Acts surface identifiers to Detray barcodes.
-    std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
-    for (const auto& surface : detector.surfaces()) {
-        barcode_map[surface.source] = surface.barcode();
-    }
-    return barcode_map;
-}
-
-}
-
-/// @brief Converts a geometry ID map to generic cell collection type into a geometry ID map to traccc cell collection.
-/// @tparam CellCollection A collection of cells
-/// @tparam get_row_fn_t a function of the signature CellCollection::value_type -> traccc::channel_id (aka unsigned int)
-/// @tparam get_column_fn_t a function of the signature CellCollection::value_type -> traccc::channel_id (aka unsigned int)
-/// @tparam get_activation_fn_t a function of the signature CellCollection::value_type -> traccc::scalar (aka float)
-/// @tparam get_time_fn a function of the signature CellCollection::value_type -> traccc::scalar (aka float)
-/// @param map Map from geometry ID to its cell data
-/// @param getRow gets the row of the cell
-/// @param getColumn gets the column of the cell
-/// @param getActivation gets the activation of the cell
-/// @param getTime gets the time stamp of the cell
-/// @note The function sets the module link of the cells in the output to 0.
-/// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
-template <typename CellCollection, typename get_row_fn_t, typename get_column_fn_t, typename get_activation_fn_t, typename get_time_fn>
-std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
-    const std::map<Acts::GeometryIdentifier, CellCollection>& map,
-    const get_row_fn_t& getRow,
-    const get_column_fn_t& getColumn,
-    const get_activation_fn_t& getActivation,
-    const get_time_fn& getTime)
-    {
-    std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
-    for (const auto& [geometryID, cells] : map){
-        std::vector<traccc::cell> tracccCells;
-        for (const auto& cell : cells){
-            tracccCells.push_back(
-                traccc::cell{
-                    getRow(cell),
-                    getColumn(cell),        
-                    getActivation(cell),
-                    getTime(cell),
-                    0
-                }
-            );
-        }
-        tracccCellMap.insert({geometryID.value(), std::move(tracccCells)});
-    }
-    return tracccCellMap;
-}
-
-template <typename data_t, typename get_segmentation_fn_t>
-traccc::digitization_config tracccConfig(
-    const Acts::GeometryHierarchyMap<data_t>& config,
-    const get_segmentation_fn_t& getSegmentation){
-    using elem_t = std::pair<Acts::GeometryIdentifier, traccc::module_digitization_config>;
-    std::vector<elem_t> vec;
-    for (auto& e : config.getElements()){
-        vec.push_back({e.first, traccc::module_digitization_config{getSegmentation(e.second)}});
-    }
-    return traccc::digitization_config(vec);
-}
-
-class CellDataConverter{
-    public:
-    template <typename metadata_t, typename container_t>
-    CellDataConverter(const detray::detector<metadata_t, container_t>& det, const traccc::digitization_config& cfg) :
-    digitizationConfig(cfg),
-    surfaceTransforms(getSurfaceTransforms(det)),
-    barcodeMap(getBarcodeMap(det)){}
-
-    auto operator()(vecmem::memory_resource* mr, std::map<std::uint64_t, std::vector<traccc::cell>> cellsMap) const{
-        std::cout << "Running Conversion" << std::endl;
-        traccc::io::cell_reader_output readOut(mr);
-        Detail::read_cells(readOut, cellsMap, &surfaceTransforms, &digitizationConfig, &barcodeMap);
-        std::cout << "Read Cells" << std::endl;
-        return std::make_tuple(std::move(readOut.cells), std::move(readOut.modules));
-    }
-    
-    private:
-    const traccc::digitization_config digitizationConfig;
-    const traccc::geometry surfaceTransforms;
-    const std::map<std::uint64_t, detray::geometry::barcode> barcodeMap;
-};
 
 }
