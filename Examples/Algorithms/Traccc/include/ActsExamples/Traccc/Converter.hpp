@@ -9,7 +9,6 @@
 #pragma once
 
 // Plugin include(s)
-#include "Acts/Plugins/Traccc/Utils.hpp"
 #include "Acts/Plugins/Traccc/CellConversion.hpp"
 #include "Acts/Plugins/Traccc/TrackConversion.hpp"
 #include "Acts/Plugins/Traccc/MeasurementConversion.hpp"
@@ -54,7 +53,7 @@
 #include <memory>
 #include <map>
 
-namespace ActsExamples::TracccPluginUtils {
+namespace ActsExamples::TracccConversion {
 
 auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = "")
 {
@@ -75,14 +74,18 @@ auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePa
     return std::move(det);
 }
 
+/// @brief Gets the time of the cell.
+/// @note Currently, it always returns 0.
 float getTime(const Cluster::Cell& /*cell*/){
     return 0.f;
 }
 
+/// @brief Gets the activation of the cell.
 float getActivation(const Cluster::Cell& cell){
     return static_cast<float>(cell.activation);
 }
 
+/// @brief Gets the row of the cell.
 unsigned int getRow(const Cluster::Cell& cell){
     if (cell.bin[0] > UINT_MAX) {
         throw std::runtime_error("Overflow will occur when casting to unsigned int.");
@@ -90,6 +93,7 @@ unsigned int getRow(const Cluster::Cell& cell){
     return static_cast<unsigned int>(cell.bin[0]);
 }
 
+/// @brief Gets the column of the cell.
 unsigned int getColumn(const Cluster::Cell& cell){
         if (cell.bin[0] > UINT_MAX) {
         throw std::runtime_error("Overflow will occur when casting to unsigned int.");
@@ -101,33 +105,12 @@ Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
     return dcc.geometricDigiConfig.segmentation;
 }
 
-
-template <typename detector_t, typename allocator_t>
-auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
-    std::vector<Acts::SourceLink>sourceLinks;
-    std::vector<Acts::Measurement<Acts::BoundIndices, 2>> measurementContainer;
-
-    for (const traccc::measurement& m : measurements) 
-    {
-        Acts::GeometryIdentifier moduleGeoId(detector.surface(m.surface_link).source);
-        Index measurementIdx = measurementContainer.size();
-        IndexSourceLink idxSourceLink{moduleGeoId, measurementIdx};
-        sourceLinks.insert(sourceLinks.end(), Acts::SourceLink{idxSourceLink});
-        measurementContainer.push_back(Acts::TracccPlugin::measurement<2UL>(m, Acts::SourceLink{idxSourceLink}));
-    }
-    return std::make_tuple(std::move(sourceLinks), std::move(measurementContainer));
-}
-
 /// @brief Converts a "geometry ID -> generic cell collection type" map to a "geometry ID -> traccc cell collection" map.
 /// @note The function sets the module link of the cells in the output to 0.
 /// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
-template <typename CellCollection, typename get_row_fn_t, typename get_column_fn_t, typename get_activation_fn_t, typename get_time_fn>
+template <typename CellCollection>
 std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
-    const std::map<Acts::GeometryIdentifier, CellCollection>& map,
-    const get_row_fn_t& getRow,
-    const get_column_fn_t& getColumn,
-    const get_activation_fn_t& getActivation,
-    const get_time_fn& getTime)
+    const std::map<Acts::GeometryIdentifier, CellCollection>& map)
     {
     std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
     for (const auto& [geometryID, cells] : map){
@@ -165,7 +148,31 @@ traccc::digitization_config tracccConfig(
     return traccc::digitization_config(vec);
 }
 
+/// @brief Creates a source links and measurements. 
+/// Creates the measurements by copying the data in the traccc measurements.
+/// @param detector The detray detector
+/// @param measurements The traccc measurements
+/// @return A tuple containing a vector of source links and a vector of Acts measurements.
+/// @note The indices of the measurements and source links corresponds to the index of their
+/// respective traccc measurement in the traccc measurement vector.
+template <typename detector_t, typename allocator_t>
+auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
+    std::vector<Acts::SourceLink>sourceLinks;
+    std::vector<Acts::Measurement<Acts::BoundIndices, 2>> measurementContainer;
 
+    for (const traccc::measurement& m : measurements) 
+    {
+        Acts::GeometryIdentifier moduleGeoId(detector.surface(m.surface_link).source);
+        Index measurementIdx = measurementContainer.size();
+        IndexSourceLink idxSourceLink{moduleGeoId, measurementIdx};
+        sourceLinks.insert(sourceLinks.end(), Acts::SourceLink{idxSourceLink});
+        measurementContainer.push_back(Acts::TracccPlugin::measurement<2UL>(m, Acts::SourceLink{idxSourceLink}));
+    }
+    return std::make_tuple(std::move(sourceLinks), std::move(measurementContainer));
+}
+
+/// @brief This class provides functions for converting input and output data using the data structures in Acts Examples.
+/// @tparam detector_t The type of the detray detector this converter expects.
 template <typename detector_t>
 class Converter{
 
@@ -177,17 +184,29 @@ class Converter{
         const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccMap):
         trackingGeometry(tg),
         detector(det),
-        cellDataConverter(*detector, Acts::TracccPlugin::Utils::tracccConfig(dccMap, getSegmentation))
+        digitizationConfig(tracccConfig(dccMap, getSegmentation)),
+        surfaceTransforms(traccc::io::alt_read_geometry(*det)),
+        barcodeMap(Acts::TracccPlugin::createBarcodeMap(*det))
     {}
 
-    auto convertInput(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>> map, vecmem::memory_resource* mr) const {
-        auto tcm = Acts::TracccPlugin::Utils::tracccCellsMap(
-            map);
-        return cellDataConverter(mr, tcm);
+    /// @brief Converts a map of cells to traccc input
+    /// @param map The geometry id -> cell collection map which corresponds to each geometry's cells.
+    /// @param mr The memory resource to use.
+    /// @returns The converted input as a tuple containing traccc input data, i.e. (cells, modules).
+    auto convertInput(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>& map, vecmem::memory_resource* mr) const {
+        auto tcm = tracccCellsMap(map);
+        return Acts::TracccPlugin::createCellsAndModules(
+            mr, tcm, &surfaceTransforms, &digitizationConfig, &barcodeMap);
     }
 
-    template <typename tracks_t, typename allocator_t>
-    auto convertOutput(const std::vector<traccc::measurement, allocator_t>& ms, const tracks_t& ts) const {
+    /// @brief Converts a container of traccc tracks to a container of Acts tracks.
+    /// @param ms The traccc measurements 
+    /// (this is needed to set the source links and calibrated data of the newly converted track states).
+    /// @param ts The (indexable) container of traccc tracks.
+    /// @return An Acts const track container containing the same track data as the traccc tracks container.
+    /// Furthermore, the track states sourcelinks and measurements are also set.
+    template <typename traccc_track_container_t, typename allocator_t>
+    auto convertOutput(const std::vector<traccc::measurement, allocator_t>& ms, const traccc_track_container_t& ts) const {
         auto trackContainer = std::make_shared<Acts::VectorTrackContainer>();
         auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
         TrackContainer tracks(trackContainer, trackStateContainer);
@@ -203,10 +222,14 @@ class Converter{
 
         return constTracks;
     }
-
+    
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
     std::shared_ptr<const detector_t> detector;
-    const Acts::TracccPlugin::CellDataConverter cellDataConverter;
+
+    // Cache the converted digitalization configuration, the surface transforms, and the barcode map.
+    const traccc::digitization_config digitizationConfig;
+    const traccc::geometry surfaceTransforms;
+    const std::map<std::uint64_t, detray::geometry::barcode> barcodeMap;
 };
 
 }

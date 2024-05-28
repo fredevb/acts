@@ -24,7 +24,7 @@
 
 // Acts examples include(s)
 #include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
-#include "ActsExamples/Traccc/Utils.hpp"
+#include "ActsExamples/Traccc/Converter.hpp"
 
 // Traccc include(s)
 #include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
@@ -145,7 +145,7 @@ class StandardChainRunner {
     
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
     std::shared_ptr<const detector_t> detector;
-    ActsExamples::TracccPluginUtils::Converter<detector_t> converter;
+    ActsExamples::TracccConversion::Converter<detector_t> converter;
 };
 
 }

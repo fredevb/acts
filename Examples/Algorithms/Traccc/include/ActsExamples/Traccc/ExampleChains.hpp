@@ -24,7 +24,6 @@
 
 // Acts examples include(s)
 #include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
-#include "ActsExamples/Traccc/Utils.hpp"
 #include "ActsExamples/Traccc/StandardChain.hpp"
 
 // Traccc include(s)

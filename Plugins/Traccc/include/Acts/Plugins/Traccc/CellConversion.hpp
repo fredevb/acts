@@ -108,7 +108,7 @@ namespace Acts::TracccPlugin{
 /// @param detector the detray detector.
 /// @return A map: geometry ID value type -> detray geometry barcode.
 template <typename metadata_t, typename container_t>
-std::map<std::uint64_t, detray::geometry::barcode> getBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
+std::map<std::uint64_t, detray::geometry::barcode> createBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
     // Construct a map from Acts surface identifiers to Detray barcodes.
     std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
     for (const auto& surface : detector.surfaces()) {
@@ -135,7 +135,7 @@ auto createCellsAndModules(
 
     // Sort the cells. Deduplication or not, they do need to be sorted.
     for (auto& [_, cells] : cellsMap) {
-        std::sort(cells.begin(), cells.end(), cell_order());
+        std::sort(cells.begin(), cells.end(), Detail::cell_order());
     }
 
     // Fill the output containers with the ordered cells and modules.
@@ -156,7 +156,7 @@ auto createCellsAndModules(
 
         // Add the module and its cells to the output.
         out.modules.push_back(
-            get_module(geometry_id, geom, dconfig, original_geometry_id));
+            Detail::get_module(geometry_id, geom, dconfig, original_geometry_id));
         for (auto& cell : cells) {
             out.cells.push_back(cell);
             // Set the module link.

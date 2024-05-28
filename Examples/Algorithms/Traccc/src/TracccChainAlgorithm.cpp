@@ -48,9 +48,11 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
   if (m_cfg.inputCells.empty()) {
     throw std::invalid_argument("Missing input cells");
   }
-  //if (m_cfg.field == nullptr) {
-  //  throw std::invalid_argument("Missing field");
-  //}
+  
+  if (m_cfg.field == nullptr) {
+    throw std::invalid_argument("Missing field");
+  }
+
   if (m_cfg.trackingGeometry == nullptr) {
     throw std::invalid_argument("Missing track geometry");
   }
@@ -63,7 +65,7 @@ ActsExamples::TracccChainAlgorithm::TracccChainAlgorithm(
   m_outputTracks.initialize(m_cfg.outputTracks);
 
   detector_mr = std::make_shared<vecmem::host_memory_resource>();
-  detector = std::make_shared<const detector_t>(ActsExamples::TracccPluginUtils::readDetector(detector_mr.get(), "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
+  detector = std::make_shared<const detector_t>(ActsExamples::TracccConversion::readDetector(detector_mr.get(), "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
   field = std::make_shared<const Acts::CovfieConversion::constant_field_t>(Acts::CovfieConversion::covfieField(*m_cfg.field));
 
   chainRunner = std::make_shared<const StandardChainRunner>(m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs);

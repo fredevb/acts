@@ -178,24 +178,24 @@ void makeTrack(
 /// A new track will be created for each element in the traccc track container. 
 /// Each new track will contain data copied from a traccc track container element (i.e, track and track state data) 
 /// and will also set the calibrated measurements and uncalibrated source link for each track state.
-/// @param tracccContainer The traccc container to copy the tracks from.
-/// @param trackContainer The Acts track container. This is the container where the new track will be made.
+/// @param tracccTrackContainer The traccc container to copy the tracks from.
+/// @param ActsTrackContainer The Acts track container. This is the container where the new track will be made.
 /// @param detector The detray detector.
 /// @param trackingGeometry The Acts tracking geometry.
 /// @param measurements A vector of calibrated measurements.
 /// @param sourceLinks A vector uncalibrated sourcelinks.
 /// @note The measurement index of each traccc track state must index its corresponding element in the calibrated measurements and uncalibrated sourcelinks vectors.
 /// @note This function repeatedly calls the makeTrack function in this plugin.
-template <typename traccc_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
+template <typename traccc_track_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
 void makeTracks(
-    const traccc_container_t& data, 
-    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer, 
+    const traccc_track_container_t& tracccTrackContainer, 
+    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& ActsTrackContainer, 
     const detray::detector<metadata_t, container_t>& detector, 
     const Acts::TrackingGeometry& trackingGeometry, 
     const std::vector<Acts::Measurement<Acts::BoundIndices, 2>>& measurements, 
     const std::vector<Acts::SourceLink>& sourceLinks) {
-    for (std::size_t i = 0; i < data.size(); i++) {
-        makeTrack(data[i], trackContainer, detector, trackingGeometry, measurements, sourceLinks);
+    for (std::size_t i = 0; i < tracccTrackContainer.size(); i++) {
+        makeTrack(tracccTrackContainer[i], ActsTrackContainer, detector, trackingGeometry, measurements, sourceLinks);
     }
 }
 
