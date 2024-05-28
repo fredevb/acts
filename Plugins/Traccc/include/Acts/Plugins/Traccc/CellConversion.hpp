@@ -36,7 +36,7 @@
 
 // This code is borrowed from traccc/io/src/csv/read_cells.cpp with minor modifications
 // so that a cells map rather than a file path is needed.
-namespace Acts::TracccPlugin::Detail {
+namespace {
 
 /// Comparator used for sorting cells. This sorting is one of the assumptions
 /// made in the clusterization algorithm
@@ -55,7 +55,7 @@ struct cell_order {
 /// Helper function which finds module from csv::cell in the geometry and
 /// digitization config, and initializes the modules limits with the cell's
 /// properties
-traccc::cell_module get_module(const std::uint64_t geometry_id,
+inline traccc::cell_module get_module(const std::uint64_t geometry_id,
                                const traccc::geometry* geom,
                                const traccc::digitization_config* dconfig,
                                const std::uint64_t original_geometry_id) {
@@ -108,7 +108,7 @@ namespace Acts::TracccPlugin{
 /// @param detector the detray detector.
 /// @return A map: geometry ID value type -> detray geometry barcode.
 template <typename metadata_t, typename container_t>
-std::map<std::uint64_t, detray::geometry::barcode> createBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
+inline std::map<std::uint64_t, detray::geometry::barcode> createBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
     // Construct a map from Acts surface identifiers to Detray barcodes.
     std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
     for (const auto& surface : detector.surfaces()) {
@@ -124,7 +124,7 @@ std::map<std::uint64_t, detray::geometry::barcode> createBarcodeMap(const detray
 /// @param dconfig The traccc digitization configuration.
 /// @param barcode_map A map from Acts geometry IDs (value) to detray barcodes.
 /// @return A tuple containing the traccc cells (first item) and traccc modules (second item).
-auto createCellsAndModules(
+inline auto createCellsAndModules(
     vecmem::memory_resource* mr,
     std::map<std::uint64_t, std::vector<traccc::cell>> cellsMap,
     const traccc::geometry* geom,
@@ -135,7 +135,7 @@ auto createCellsAndModules(
 
     // Sort the cells. Deduplication or not, they do need to be sorted.
     for (auto& [_, cells] : cellsMap) {
-        std::sort(cells.begin(), cells.end(), Detail::cell_order());
+        std::sort(cells.begin(), cells.end(), cell_order());
     }
 
     // Fill the output containers with the ordered cells and modules.
@@ -156,7 +156,7 @@ auto createCellsAndModules(
 
         // Add the module and its cells to the output.
         out.modules.push_back(
-            Detail::get_module(geometry_id, geom, dconfig, original_geometry_id));
+            get_module(geometry_id, geom, dconfig, original_geometry_id));
         for (auto& cell : cells) {
             out.cells.push_back(cell);
             // Set the module link.

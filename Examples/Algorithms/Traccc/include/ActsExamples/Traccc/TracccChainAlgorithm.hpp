@@ -9,7 +9,7 @@
 #pragma once
 
 // Traccc plugin include(s)
-#include "ActsExamples/Traccc/StandardChain.hpp"
+#include "ActsExamples/Traccc/Chain.hpp"
 
 // Acts include(s)
 #include "Acts/Utilities/Logger.hpp"
@@ -44,36 +44,59 @@
 namespace ActsExamples {
 
 /// Construct a traccc algorithm
+template <typename platform_t>
 class TracccChainAlgorithm final : public IAlgorithm {
 public:
+
+using PlatformType = platform_t;
+using ChainType = Chain::Chain<PlatformType>;
+using DetectorType = typename PlatformType::detector_type;
+using FieldType = Acts::CovfieConversion::constant_field_t;
+
+using CellsMapType = std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>;
+
 struct Config {
     std::string inputCells;
     std::string outputTracks;
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry = nullptr;
     std::shared_ptr<const Acts::ConstantBField> field;
     Acts::GeometryHierarchyMap<DigiComponentsConfig> digitizationConfigs;
+    std::shared_ptr<const typename ChainType::Config> chainConfig;
 };
-
-using field_t = Acts::CovfieConversion::constant_field_t;
-
-using detector_t = detray::detector<detray::default_metadata, detray::host_container_types>;
-using stepper_t = detray::rk_stepper<typename detray::bfield::const_field_t::view_t, typename detector_t::algebra_type, detray::constrained_step<>>;
-using navigator_t = detray::navigator<const detector_t>;
-using finding_algorithm_t = traccc::finding_algorithm<stepper_t, navigator_t>;
-using fitter_t = traccc::kalman_fitter<stepper_t, navigator_t>;
-using fitting_algorithm_t = traccc::fitting_algorithm<fitter_t>;
-using clusterization_algorithm_t = traccc::host::clusterization_algorithm;
-using spacepoint_formation_algorithm_t = traccc::host::spacepoint_formation_algorithm;
-using seeding_algorithm_t = traccc::seeding_algorithm;
-using track_params_estimation_algorithm_t = traccc::track_params_estimation;
-using resolution_algorithm_t = traccc::greedy_ambiguity_resolution_algorithm;
-//using chain_t = StandardChainHost<clusterization_algorithm_t, spacepoint_formation_algorithm_t, seeding_algorithm_t, track_params_estimation_algorithm_t, finding_algorithm_t, fitting_algorithm_t, resolution_algorithm_t>;
 
 /// Construct the traccc algorithm.
 ///
 /// @param cfg is the algorithm configuration
 /// @param lvl is the logging level
-TracccChainAlgorithm(Config cfg, Acts::Logging::Level lvl);
+TracccChainAlgorithm(
+    Config cfg, Acts::Logging::Level lvl)
+    : ActsExamples::IAlgorithm("TracccChainAlgorithm", lvl),
+      m_cfg(std::move(cfg)) {
+
+  if (m_cfg.inputCells.empty()) {
+    throw std::invalid_argument("Missing input cells");
+  }
+
+  if (m_cfg.field == nullptr) {
+    throw std::invalid_argument("Missing field");
+  }
+
+  if (m_cfg.trackingGeometry == nullptr) {
+    throw std::invalid_argument("Missing track geometry");
+  }
+
+  if (m_cfg.digitizationConfigs.empty()) {
+    throw std::invalid_argument("Missing digitization configuration");
+  }
+
+  m_inputCells.initialize(m_cfg.inputCells);
+  m_outputTracks.initialize(m_cfg.outputTracks);
+
+  detector = std::make_shared<const DetectorType>(ActsExamples::TracccConversion::readDetector(&platformMemoryResource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
+  field = std::make_shared<const FieldType>(Acts::CovfieConversion::covfieField(*m_cfg.field));
+  chain = std::make_shared<const ChainType>(&platformMemoryResource, *m_cfg.chainConfig);
+  dataConverter = std::make_shared<const ActsExamples::TracccConversion::Converter<DetectorType>>(m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs);
+}
 
 /// Run the algorithm.
 ///
@@ -86,22 +109,21 @@ const Config& config() const { return m_cfg; }
 
 private:
 
-using CellsMap = std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>;
-
 Config m_cfg;
 
-ReadDataHandle<CellsMap> m_inputCells{this, "InputCells"};
+ReadDataHandle<CellsMapType> m_inputCells{this, "InputCells"};
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
 // memory resources should be declared before detector to ensure order of destructor call.
-std::shared_ptr<vecmem::memory_resource> detector_mr;
 // Same goes for dectector. It should come before the chain runner.
-std::shared_ptr<const detector_t> detector;
 
-std::shared_ptr<const StandardChainRunner> chainRunner;
+typename PlatformType::memory_resource_type platformMemoryResource;
+std::shared_ptr<const DetectorType> detector;
+std::shared_ptr<const ChainType> chain;
+std::shared_ptr<const FieldType> field;
+std::shared_ptr<const TracccConversion::Converter<DetectorType>> dataConverter;
 
-std::shared_ptr<const Acts::CovfieConversion::constant_field_t> field;
 };
 
 }  // namespace ActsExamples

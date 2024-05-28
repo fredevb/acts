@@ -36,7 +36,7 @@ namespace Acts::TracccPlugin {
 /// @brief Converts a traccc bound index to an Acts bound index.
 /// @param tracccBoundIndex the traccc bound index.
 /// @return The Acts bound index.
-Acts::BoundIndices boundIndex(const traccc::bound_indices tracccBoundIndex){
+inline Acts::BoundIndices boundIndex(const traccc::bound_indices tracccBoundIndex){
     switch (tracccBoundIndex)
     {
     case traccc::bound_indices::e_bound_loc0:
@@ -64,7 +64,7 @@ Acts::BoundIndices boundIndex(const traccc::bound_indices tracccBoundIndex){
 /// @param sl the Acts source link.
 /// @return an Acts measurementwith data copied from the traccc measurement.
 template <std::size_t dim>
-Acts::Measurement<Acts::BoundIndices, dim> measurement(const traccc::measurement& m, const Acts::SourceLink sl){
+inline Acts::Measurement<Acts::BoundIndices, dim> measurement(const traccc::measurement& m, const Acts::SourceLink sl){
     auto params = Detail::newVector<dim>(m.local);
     std::array<Acts::BoundIndices, dim> indices;
     for (unsigned int i = 0; i < dim; i++){
@@ -83,7 +83,7 @@ Acts::Measurement<Acts::BoundIndices, dim> measurement(const traccc::measurement
 /// @param sl the Acts source link.
 /// @return an Acts bound variant measurement with data copied from the traccc measurement.
 template <std::size_t max_dim = 4UL>
-Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measurement& m, const Acts::SourceLink sl){
+inline Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measurement& m, const Acts::SourceLink sl){
     if constexpr (max_dim == 0UL){
         std::string errorMsg = "Invalid/mismatching measurement dimension: " +
                     std::to_string(m.meas_dim);

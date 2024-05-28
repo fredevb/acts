@@ -1,6 +1,6 @@
 add_library(
   ActsExamplesTraccc SHARED
-  src/TracccChainAlgorithm.cpp
+  src/TracccChainAlgorithmHost.cpp
 )
 
 target_include_directories(

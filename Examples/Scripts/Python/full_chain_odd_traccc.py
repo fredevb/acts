@@ -254,6 +254,7 @@ addTracccChain(
     digiConfigFile=oddDigiConfig,
     inputCells="cells",
     outputDirRoot=outputDir,
+    chainConfig=acts.examples.TracccChainConfigHost(),
     #outputDirCsv=outputDir,
 )
 

@@ -55,7 +55,7 @@
 
 namespace ActsExamples::TracccConversion {
 
-auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = "")
+inline auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = "")
 {
     using detector_type = detray::detector<detray::default_metadata,
                                         detray::host_container_types>;
@@ -76,17 +76,17 @@ auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePa
 
 /// @brief Gets the time of the cell.
 /// @note Currently, it always returns 0.
-float getTime(const Cluster::Cell& /*cell*/){
+inline float getTime(const Cluster::Cell& /*cell*/){
     return 0.f;
 }
 
 /// @brief Gets the activation of the cell.
-float getActivation(const Cluster::Cell& cell){
+inline float getActivation(const Cluster::Cell& cell){
     return static_cast<float>(cell.activation);
 }
 
 /// @brief Gets the row of the cell.
-unsigned int getRow(const Cluster::Cell& cell){
+inline unsigned int getRow(const Cluster::Cell& cell){
     if (cell.bin[0] > UINT_MAX) {
         throw std::runtime_error("Overflow will occur when casting to unsigned int.");
     }
@@ -94,14 +94,14 @@ unsigned int getRow(const Cluster::Cell& cell){
 }
 
 /// @brief Gets the column of the cell.
-unsigned int getColumn(const Cluster::Cell& cell){
+inline unsigned int getColumn(const Cluster::Cell& cell){
         if (cell.bin[0] > UINT_MAX) {
         throw std::runtime_error("Overflow will occur when casting to unsigned int.");
     }
     return static_cast<unsigned int>(cell.bin[1]);
 }
 
-Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
+inline Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
     return dcc.geometricDigiConfig.segmentation;
 }
 
@@ -109,7 +109,7 @@ Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
 /// @note The function sets the module link of the cells in the output to 0.
 /// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
 template <typename CellCollection>
-std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
+inline std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
     const std::map<Acts::GeometryIdentifier, CellCollection>& map)
     {
     std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
@@ -137,7 +137,7 @@ std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
 /// @param getSegmentation a function that gets the segmentation from an item in the geometry hierarchy map.
 /// @return a traccc digitization config.
 template <typename data_t, typename get_segmentation_fn_t>
-traccc::digitization_config tracccConfig(
+inline traccc::digitization_config tracccConfig(
     const Acts::GeometryHierarchyMap<data_t>& config,
     const get_segmentation_fn_t& getSegmentation){
     using elem_t = std::pair<Acts::GeometryIdentifier, traccc::module_digitization_config>;
@@ -156,7 +156,7 @@ traccc::digitization_config tracccConfig(
 /// @note The indices of the measurements and source links corresponds to the index of their
 /// respective traccc measurement in the traccc measurement vector.
 template <typename detector_t, typename allocator_t>
-auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
+inline auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
     std::vector<Acts::SourceLink>sourceLinks;
     std::vector<Acts::Measurement<Acts::BoundIndices, 2>> measurementContainer;
 

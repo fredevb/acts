@@ -18,7 +18,7 @@ namespace Acts::TracccPlugin::Detail {
 
 /// @brief Creates a new Acts vector from another vector type.
 template <std::size_t N, typename dvector_t>
-Acts::ActsVector<N> newVector(const dvector_t& dvec){
+inline Acts::ActsVector<N> newVector(const dvector_t& dvec){
     Acts::ActsVector<N> res;
     for(std::size_t i = 0; i < N; i++){
         res(i) = static_cast<Acts::ActsScalar>(dvec[i]);
@@ -27,7 +27,7 @@ Acts::ActsVector<N> newVector(const dvector_t& dvec){
 }
 /// @brief Creates a new Acts square matrix from another square matrix type.
 template <std::size_t N, typename matrixNxN_t>
-Acts::ActsSquareMatrix<N> newSqaureMatrix(const matrixNxN_t& mat){
+inline Acts::ActsSquareMatrix<N> newSqaureMatrix(const matrixNxN_t& mat){
     Acts::ActsSquareMatrix<N> res;
     for(std::size_t x = 0; x < N; x++){
         for(std::size_t y = 0; y < N; y++){

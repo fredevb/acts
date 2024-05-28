@@ -2076,6 +2076,7 @@ def addTracccChain(
     trackingGeometry: acts.TrackingGeometry,
     field: acts.MagneticFieldProvider,
     digiConfigFile: Union[Path, str],
+    chainConfig,
     inputCells:  Optional[str]= "cells", #"InputCells",
     outputTracks: Optional[str]="traccc_tracks",
     outputDirRoot: Optional[Union[Path, str]] = None,
@@ -2084,11 +2085,11 @@ def addTracccChain(
     writeTrajectories: bool = True,
     writeCovMat=False,
 ) -> None:
-    from acts.examples import TracccChainAlgorithm
+    from acts.examples import TracccChainAlgorithmHost
 
     customLogLevel = acts.examples.defaultLogging(s, logLevel)
 
-    alg = TracccChainAlgorithm(
+    alg = TracccChainAlgorithmHost(
         level=customLogLevel(),
         inputCells=inputCells,
         outputTracks=outputTracks,
@@ -2096,7 +2097,8 @@ def addTracccChain(
         field=field,
         digitizationConfigs=acts.examples.readDigiConfigFromJson(
             str(digiConfigFile),
-        )
+        ),
+        chainConfig=chainConfig
     )
 
     s.addAlgorithm(alg)

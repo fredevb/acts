@@ -10,26 +10,36 @@
 #include "Acts/Utilities/TypeTraits.hpp"
 #include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/Traccc/TracccChainAlgorithm.hpp"
+#include "ActsExamples/Traccc/Chain.hpp"
 
 #include <memory>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
 namespace py = pybind11;
 
-using namespace ActsExamples;
-using namespace Acts;
+template class ActsExamples::TracccChainAlgorithm<ActsExamples::Chain::Host>;
 
 namespace Acts::Python {
 
-void addTracccChain(Context& ctx) {
-  auto mex = ctx.get("examples");
-
+template <typename platform_t>
+void declareTracccAlgorithm(py::module &m, const std::string &platformName) {
+  using config_type = typename ActsExamples::Chain::Chain<platform_t>::Config;
+  py::class_<config_type, std::shared_ptr<config_type>>(m, (std::string("TracccChainConfig") + platformName).c_str())
+  .def(py::init<>());
+  
+  using algorithm_type = typename ActsExamples::TracccChainAlgorithm<platform_t>;
   ACTS_PYTHON_DECLARE_ALGORITHM(
-      ActsExamples::TracccChainAlgorithm, mex,
-      "TracccChainAlgorithm", inputCells,
-      outputTracks, trackingGeometry, field, digitizationConfigs);
+    algorithm_type, m,
+    (std::string("TracccChainAlgorithm") + platformName).c_str(), inputCells,
+    outputTracks, trackingGeometry, field, digitizationConfigs, chainConfig);
+}
+
+void addTracccChain(Context& ctx) {
+  auto m = ctx.get("examples");
+  declareTracccAlgorithm<ActsExamples::Chain::Host>(m, "Host");
 }
 
 }  // namespace Acts::Python
