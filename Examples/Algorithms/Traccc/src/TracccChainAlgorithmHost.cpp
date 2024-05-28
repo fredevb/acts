@@ -26,15 +26,15 @@ template <>
 ActsExamples::ProcessCode ActsExamples::TracccChainAlgorithm<ActsExamples::Chain::Host>::execute(
 const ActsExamples::AlgorithmContext& ctx) const {
 
-  typename PlatformType::memory_resource_type mr;
+  typename PlatformType::MemoryResourceType mr;
 
-  typename PlatformType::clusterization_algorithm_type::output_type measurements{&mr};
-  typename PlatformType::spacepoint_formation_algorithm_type::output_type spacepoints{&mr};
-  typename PlatformType::seeding_algorithm_type::output_type seeds{&mr};
-  typename PlatformType::track_parameters_estimation_algorithm_type::output_type params{&mr};
-  typename PlatformType::finding_algorithm_type::output_type trackCandidates{&mr};
-  typename PlatformType::fitting_algorithm_type::output_type trackStates{&mr};
-  typename PlatformType::ambiguity_resolution_algorithm_type::output_type resolvedTrackStates{&mr};
+  typename PlatformType::ClusterizationAlgorithmType::output_type measurements{&mr};
+  typename PlatformType::SpacepointFormationAlgorithmType::output_type spacepoints{&mr};
+  typename PlatformType::SeedingAlgorithmType::output_type seeds{&mr};
+  typename PlatformType::TrackParametersEstimationAlgorithmType::output_type params{&mr};
+  typename PlatformType::FindingAlgorithmType::output_type trackCandidates{&mr};
+  typename PlatformType::FittingAlgorithmType::output_type trackStates{&mr};
+  typename PlatformType::AmbiguityResolutionAlgorithmType::output_type resolvedTrackStates{&mr};
 
   const auto cellsMap = m_inputCells(ctx);
 

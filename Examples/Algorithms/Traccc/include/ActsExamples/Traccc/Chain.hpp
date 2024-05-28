@@ -24,7 +24,6 @@
 
 // Acts examples include(s)
 #include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
-#include "ActsExamples/Traccc/StandardChain.hpp"
 
 // Traccc include(s)
 #include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
@@ -55,42 +54,43 @@
 namespace ActsExamples::Chain {
 
 struct Host {
-    using memory_resource_type = vecmem::host_memory_resource;
-    using detector_type = detray::detector<detray::default_metadata, detray::host_container_types>;
-    using stepper_type = detray::rk_stepper<typename detray::bfield::const_field_t::view_t, typename detector_type::algebra_type, detray::constrained_step<>>;
-    using navigator_type = detray::navigator<const detector_type>;
-    using finding_algorithm_type = traccc::finding_algorithm<stepper_type, navigator_type>;
-    using fitter_type = traccc::kalman_fitter<stepper_type, navigator_type>;
-    using fitting_algorithm_type = traccc::fitting_algorithm<fitter_type>;
-    using clusterization_algorithm_type = traccc::host::clusterization_algorithm;
-    using spacepoint_formation_algorithm_type = traccc::host::spacepoint_formation_algorithm;
-    using seeding_algorithm_type = traccc::seeding_algorithm;
-    using track_parameters_estimation_algorithm_type = traccc::track_params_estimation;
-    using ambiguity_resolution_algorithm_type = traccc::greedy_ambiguity_resolution_algorithm;
+    using MemoryResourceType = vecmem::host_memory_resource;
+    using DetectorType = detray::detector<detray::default_metadata, detray::host_container_types>;
+    using StepperType = detray::rk_stepper<typename detray::bfield::const_field_t::view_t, typename DetectorType::algebra_type, detray::constrained_step<>>;
+    using NavigatorType = detray::navigator<const DetectorType>;
+    using FitterType = traccc::kalman_fitter<StepperType, NavigatorType>;
+
+    using ClusterizationAlgorithmType = traccc::host::clusterization_algorithm;
+    using SpacepointFormationAlgorithmType = traccc::host::spacepoint_formation_algorithm;
+    using SeedingAlgorithmType = traccc::seeding_algorithm;
+    using TrackParametersEstimationAlgorithmType = traccc::track_params_estimation;
+    using FindingAlgorithmType = traccc::finding_algorithm<StepperType, NavigatorType>;
+    using FittingAlgorithmType = traccc::fitting_algorithm<FitterType>;
+    using AmbiguityResolutionAlgorithmType = traccc::greedy_ambiguity_resolution_algorithm;
 };
 
 template <typename platform_t>
 struct Chain {
-    using platform_type = platform_t;
+    using PlatformType = platform_t;
 
-    typename platform_type::clusterization_algorithm_type clusterizationAlgorithm;
-    typename platform_type::spacepoint_formation_algorithm_type spacepointFormationAlgorithm;
-    typename platform_type::seeding_algorithm_type seedingAlgorithm;
-    typename platform_type::track_parameters_estimation_algorithm_type trackParametersEstimationAlgorithm;
-    typename platform_type::finding_algorithm_type findingAlgorithm;
-    typename platform_type::fitting_algorithm_type fittingAlgorithm;
-    typename platform_type::ambiguity_resolution_algorithm_type ambiguityResolutionAlgorithm;
+    typename PlatformType::ClusterizationAlgorithmType clusterizationAlgorithm;
+    typename PlatformType::SpacepointFormationAlgorithmType spacepointFormationAlgorithm;
+    typename PlatformType::SeedingAlgorithmType seedingAlgorithm;
+    typename PlatformType::TrackParametersEstimationAlgorithmType trackParametersEstimationAlgorithm;
+    typename PlatformType::FindingAlgorithmType findingAlgorithm;
+    typename PlatformType::FittingAlgorithmType fittingAlgorithm;
+    typename PlatformType::AmbiguityResolutionAlgorithmType ambiguityResolutionAlgorithm;
 
     struct Config{
         const traccc::seedfinder_config seedfinderConfig;
         const traccc::spacepoint_grid_config spacepointGridConfig{seedfinderConfig};
         const traccc::seedfilter_config seedfilterConfig;
-        const typename platform_type::finding_algorithm_type::config_type findingConfig;
-        const typename platform_type::fitting_algorithm_type::config_type fittingConfig;
-        const typename platform_type::ambiguity_resolution_algorithm_type::config_t ambiguityResolutionConfig;
+        const typename PlatformType::FindingAlgorithmType::config_type findingConfig;
+        const typename PlatformType::FittingAlgorithmType::config_type fittingConfig;
+        const typename PlatformType::AmbiguityResolutionAlgorithmType::config_t ambiguityResolutionConfig;
     };
 
-    Chain(typename platform_type::memory_resource_type* mr, const Config& config):
+    Chain(typename PlatformType::MemoryResourceType* mr, const Config& config):
         clusterizationAlgorithm(*mr),
         spacepointFormationAlgorithm(*mr),
         seedingAlgorithm(config.seedfinderConfig, config.spacepointGridConfig, config.seedfilterConfig, *mr),

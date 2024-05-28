@@ -10,6 +10,7 @@
 
 // Traccc plugin include(s)
 #include "ActsExamples/Traccc/Chain.hpp"
+#include "ActsExamples/Traccc/Converter.hpp"
 
 // Acts include(s)
 #include "Acts/Utilities/Logger.hpp"
@@ -46,11 +47,32 @@ namespace ActsExamples {
 /// Construct a traccc algorithm
 template <typename platform_t>
 class TracccChainAlgorithm final : public IAlgorithm {
+private:
+
+// Temporarily used to get the corresponding detray detector for the Acts geometry.
+// Will be replaced when the detray plugin containing geometry conversion is complete.
+inline auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = "")
+{
+    // Set up the detector reader configuration.
+    detray::io::detector_reader_config cfg;
+    cfg.add_file(detectorFilePath);
+    if (!materialFilePath.empty()) {
+        cfg.add_file(materialFilePath);
+    }
+    if (!gridFilePath.empty()) {
+        cfg.add_file(gridFilePath);
+    }
+
+    // Read the detector.
+    auto [det, names] = detray::io::read_detector<DetectorType>(*mr, cfg);
+    return std::move(det);
+}
+
 public:
 
 using PlatformType = platform_t;
 using ChainType = Chain::Chain<PlatformType>;
-using DetectorType = typename PlatformType::detector_type;
+using DetectorType = typename PlatformType::DetectorType;
 using FieldType = Acts::CovfieConversion::constant_field_t;
 
 using CellsMapType = std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>;
@@ -92,7 +114,8 @@ TracccChainAlgorithm(
   m_inputCells.initialize(m_cfg.inputCells);
   m_outputTracks.initialize(m_cfg.outputTracks);
 
-  detector = std::make_shared<const DetectorType>(ActsExamples::TracccConversion::readDetector(&platformMemoryResource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
+  // Read detector from file as temporary solution until detray plugin is complete.
+  detector = std::make_shared<const DetectorType>(readDetector(&platformMemoryResource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
   field = std::make_shared<const FieldType>(Acts::CovfieConversion::covfieField(*m_cfg.field));
   chain = std::make_shared<const ChainType>(&platformMemoryResource, *m_cfg.chainConfig);
   dataConverter = std::make_shared<const ActsExamples::TracccConversion::Converter<DetectorType>>(m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs);
@@ -115,10 +138,8 @@ ReadDataHandle<CellsMapType> m_inputCells{this, "InputCells"};
 
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
-// memory resources should be declared before detector to ensure order of destructor call.
-// Same goes for dectector. It should come before the chain runner.
-
-typename PlatformType::memory_resource_type platformMemoryResource;
+// Ensure order of destructor call.
+typename PlatformType::MemoryResourceType platformMemoryResource;
 std::shared_ptr<const DetectorType> detector;
 std::shared_ptr<const ChainType> chain;
 std::shared_ptr<const FieldType> field;

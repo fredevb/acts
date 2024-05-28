@@ -55,25 +55,6 @@
 
 namespace ActsExamples::TracccConversion {
 
-inline auto readDetector(vecmem::memory_resource* mr, const std::string& detectorFilePath, const std::string& materialFilePath = "", const std::string& gridFilePath = "")
-{
-    using detector_type = detray::detector<detray::default_metadata,
-                                        detray::host_container_types>;
-    // Set up the detector reader configuration.
-    detray::io::detector_reader_config cfg;
-    cfg.add_file(detectorFilePath);
-    if (!materialFilePath.empty()) {
-        cfg.add_file(materialFilePath);
-    }
-    if (!gridFilePath.empty()) {
-        cfg.add_file(gridFilePath);
-    }
-
-    // Read the detector.
-    auto [det, names] = detray::io::read_detector<detector_type>(*mr, cfg);
-    return std::move(det);
-}
-
 /// @brief Gets the time of the cell.
 /// @note Currently, it always returns 0.
 inline float getTime(const Cluster::Cell& /*cell*/){
@@ -108,9 +89,9 @@ inline Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
 /// @brief Converts a "geometry ID -> generic cell collection type" map to a "geometry ID -> traccc cell collection" map.
 /// @note The function sets the module link of the cells in the output to 0.
 /// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
-template <typename CellCollection>
+template <typename cell_collection_t>
 inline std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
-    const std::map<Acts::GeometryIdentifier, CellCollection>& map)
+    const std::map<Acts::GeometryIdentifier, cell_collection_t>& map)
     {
     std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellMap;
     for (const auto& [geometryID, cells] : map){
@@ -140,8 +121,8 @@ template <typename data_t, typename get_segmentation_fn_t>
 inline traccc::digitization_config tracccConfig(
     const Acts::GeometryHierarchyMap<data_t>& config,
     const get_segmentation_fn_t& getSegmentation){
-    using elem_t = std::pair<Acts::GeometryIdentifier, traccc::module_digitization_config>;
-    std::vector<elem_t> vec;
+    using ElementType = std::pair<Acts::GeometryIdentifier, traccc::module_digitization_config>;
+    std::vector<ElementType> vec;
     for (auto& e : config.getElements()){
         vec.push_back({e.first, traccc::module_digitization_config{getSegmentation(e.second)}});
     }

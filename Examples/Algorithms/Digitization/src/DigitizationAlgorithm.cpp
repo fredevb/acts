@@ -153,7 +153,9 @@ ActsExamples::ProcessCode ActsExamples::DigitizationAlgorithm::execute(
 
   // Some statistics
   std::size_t skippedHits = 0;
-
+  
+  // Some algorithms do the clusterization themselves such as the traccc chain.
+  // Thus we need to store the cell data from the simulation.
   CellsMap cellsMap;
 
   ACTS_DEBUG("Starting loop over modules ...");
@@ -261,14 +263,13 @@ ActsExamples::ProcessCode ActsExamples::DigitizationAlgorithm::execute(
 
           auto digitizeParametersResult = moduleClusters.digitizedParameters();
 
+          // Store the data of the cells from the simulation.
           std::vector<Cluster::Cell> cells;
-
           for (auto& [dParameters, simhits] : digitizeParametersResult) {
             for (auto cell : dParameters.cluster.channels){
               cells.push_back(std::move(cell));
             }
           }
-
           cellsMap.insert({moduleGeoId, cells});
 
           for (auto& [dParameters, simhits] : digitizeParametersResult) {
