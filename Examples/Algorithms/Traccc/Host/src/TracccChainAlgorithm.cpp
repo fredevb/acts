@@ -51,7 +51,7 @@ const ActsExamples::AlgorithmContext& ctx) const {
 
   ACTS_VERBOSE("Converted the Acts input data to traccc input data");
 
-  measurements = clusterizationAlgorithm(vecmem::get_data(cells), vecmem::get_data(modules)); //HERE, note gcda error in python script at the start. (different behaviour on full clean build?)
+  measurements = clusterizationAlgorithm(vecmem::get_data(cells), vecmem::get_data(modules));
   
   ACTS_INFO("Ran the clusterization algorithm");
 
@@ -64,7 +64,6 @@ const ActsExamples::AlgorithmContext& ctx) const {
   ACTS_INFO("Ran the seeding algorithm");
 
   const typename FieldType::view_t fieldView(field);
-
   static_assert(std::is_same<FieldType, typename detray::bfield::const_field_t>::value, "Currently, traccc expects a constant field.");
   params = trackParametersEstimationAlgorithm(spacepoints, seeds, fieldView.at(0.f,0.f,0.f));
   

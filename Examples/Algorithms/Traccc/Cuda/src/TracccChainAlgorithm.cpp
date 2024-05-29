@@ -7,14 +7,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Acts examples include(s)
-#include "ActsExamples/Traccc/TracccChainAlgorithm.hpp"
-
-// VecMem include(s).
-#include <vecmem/memory/cuda/device_memory_resource.hpp>
-#include <vecmem/memory/cuda/host_memory_resource.hpp>
-#include <vecmem/memory/host_memory_resource.hpp>
-#include <vecmem/utils/cuda/async_copy.hpp>
-
+#include "ActsExamples/Traccc/Cuda/TracccChainAlgorithm.hpp"
 
 // System include(s).
 #include <cstdint>
@@ -27,24 +20,30 @@
 
 #include <stdexcept>
 
-using namespace Acts::TracccPlugin;
+ActsExamples::Traccc::Host::TracccChainAlgorithm::TracccChainAlgorithm(
+    Config cfg, Acts::Logging::Level lvl)
+    : ActsExamples::Traccc::Common::TracccChainAlgorithmBase(std::move(cfg), std::move(lvl)),
+    clusterizationAlgorithm(vecmem::memory_resource{cachedDeviceMemoryResource, &hostMemoryResource}, asyncCopy, stream, targetCellsPerPartition),
+    spacepointFormationAlgorithm(vecmem::memory_resource{cachedDeviceMemoryResource, &hostMemoryResource}, asyncCopy, stream),
+    seedingAlgorithm(m_cfg.chainConfig->seedfinderConfig, m_cfg.chainConfig->spacepointGridConfig, m_cfg.chainConfig->seedfilterConfig, vecmem::memory_resource{cachedDeviceMemoryResource, &hostMemoryResource}, asyncCopy, stream),
+    trackParametersEstimationAlgorithm(vecmem::memory_resource{cachedDeviceMemoryResource, &hostMemoryResource}, asyncCopy, stream),
+    findingAlgorithm(m_cfg.chainConfig->findingConfig, vecmem::memory_resource{cachedDeviceMemoryResource, &hostMemoryResource}, asyncCopy, stream),
+    fittingAlgorithm(m_cfg.chainConfig->fittingConfig, vecmem::memory_resource{cachedDeviceMemoryResource, &hostMemoryResource}, asyncCopy, stream),
+    ambiguityResolutionAlgorithm(m_cfg.chainConfig->ambiguityResolutionConfig)
+{}
 
-template <>
-ActsExamples::ProcessCode ActsExamples::TracccChainAlgorithm<ActsExamples::Chain::Cuda>::execute(
+ActsExamples::ProcessCode ActsExamples::Traccc::Cuda::TracccChainAlgorithm::execute(
 const ActsExamples::AlgorithmContext& ctx) const {
 
-      using DetectorType = detray::detector<detray::default_metadata, detray::device_container_types>;
-    using StepperType = detray::rk_stepper<typename detray::bfield::const_field_t::view_t, typename DetectorType::algebra_type, detray::constrained_step<>>;
-    using NavigatorType = detray::navigator<const DetectorType>;
-    using FitterType = traccc::kalman_fitter<StepperType, NavigatorType>;
+  vecmem::host_memory_resource mr;
 
-    using ClusterizationAlgorithmType = traccc::cuda::clusterization_algorithm;
-    using SpacepointFormationAlgorithmType = traccc::cuda::spacepoint_formation_algorithm;
-    using SeedingAlgorithmType = traccc::cuda::seeding_algorithm;
-    using TrackParametersEstimationAlgorithmType = traccc::cuda::track_params_estimation;
-    using FindingAlgorithmType = traccc::finding_algorithm<StepperType, NavigatorType>;
-    using FittingAlgorithmType = traccc::fitting_algorithm<FitterType>;
-    using AmbiguityResolutionAlgorithmType = traccc::greedy_ambiguity_resolution_algorithm;
+  typename HostTypes::ClusterizationAlgorithmType::output_type measurements{&mr};
+  typename HostTypes::SpacepointFormationAlgorithmType::output_type spacepoints{&mr};
+  typename HostTypes::SeedingAlgorithmType::output_type seeds{&mr};
+  typename HostTypes::TrackParametersEstimationAlgorithmType::output_type params{&mr};
+  typename HostTypes::FindingAlgorithmType::output_type trackCandidates{&mr};
+  typename HostTypes::FittingAlgorithmType::output_type trackStates{&mr};
+  typename HostTypes::AmbiguityResolutionAlgorithmType::output_type resolvedTrackStates{&mr};
 
   const auto cellsMap = m_inputCells(ctx);
 
@@ -53,45 +52,41 @@ const ActsExamples::AlgorithmContext& ctx) const {
   ACTS_VERBOSE("Converted the Acts input data to traccc input data");
 
   // Create device copy of input collections
-  cell_collection_types::buffer cells_buffer(cells.size(),
-                                              *m_cached_device_mr);
-  m_copy(vecmem::get_data(cells), cells_buffer)->ignore();
-  cell_module_collection_types::buffer modules_buffer(modules.size(),
-                                                      *m_cached_device_mr);
-  m_copy(vecmem::get_data(modules), modules_buffer)->ignore();
+  cell_collection_types::buffer cellsBuffer(cells.size(),
+                                              cachedDeviceMemoryResource);
+  asyncCopy(vecmem::get_data(cells), cellsBuffer)->ignore();
+  cell_module_collection_types::buffer modulesBuffer(modules.size(), cachedDeviceMemoryResource);
+  asyncCopy(vecmem::get_data(modules), modulesBuffer)->ignore();
 
   // Run the clusterization (asynchronously).
-  const clusterization_algorithm::output_type measurements =
-      m_clusterization(cells_buffer, modules_buffer);
-  m_measurement_sorting(measurements);
+  measurements = clusterizationAlgorithm(cellsBuffer, modulesBuffer);
+  measurementSorting(measurements);
 
   // Run the seed-finding (asynchronously).
-  const spacepoint_formation_algorithm::output_type spacepoints =
-      m_spacepoint_formation(measurements, modules_buffer);
-  const track_params_estimation::output_type track_params =
-      m_track_parameter_estimation(spacepoints, m_seeding(spacepoints),
-                                    m_field_vec);
+  spacepoints = spacepointFormationAlgorithm(measurements, modulesBuffer);
+
+  seeds = seedingAlgorithm(spacepoints);
+
+  const typename FieldType::view_t fieldView(field);
+  static_assert(std::is_same<FieldType, typename detray::bfield::const_field_t>::value, "Currently, traccc expects a constant field.");
+  params = trackParameterEstimationAlgorithm(spacepoints, seeds, fieldView.at(0.f,0.f,0.f));
 
   // Create the buffer needed by track finding and fitting.
-  auto navigation_buffer = detray::create_candidates_buffer(
-      *m_detector,
-      m_finding_config.navigation_buffer_size_scaler *
-          m_copy.get_size(track_params),
-      *m_cached_device_mr, &m_host_mr);
+  auto navigationBuffer = detray::create_candidates_buffer(
+      hostDetector,
+      m_cfg.chainConfig.findingConfig.navigation_buffer_size_scaler *
+          asyncCopy.get_size(params),
+      cachedDeviceMemoryResource, &hostMemoryResource);
 
   // Run the track finding (asynchronously).
-  const finding_algorithm::output_type track_candidates =
-      m_finding(m_device_detector_view, m_field, navigation_buffer,
-                measurements, track_params);
+  trackCandidates = findingAlgorithm(deviceDetectorView, field, navigationBuffer, measurements, params);
 
   // Run the track fitting (asynchronously).
-  const fitting_algorithm::output_type track_states =
-      m_fitting(m_device_detector_view, m_field, navigation_buffer,
-                track_candidates);
+  trackStates = fittingAlgorithm(deviceDetectorView, field, navigationBuffer, trackCandidates);
 
   // Copy a limited amount of result data back to the host.
-  output_type trackStates{&m_host_mr};
-  m_copy(track_states.headers, trackStates)->wait();
+  output_type trackStatesHost{&hostMemoryResource};
+  asyncCopy(track_states.headers, trackStates)->wait();
 
   auto result = dataConverter->convertOutput(measurements, trackStates); 
 
