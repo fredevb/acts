@@ -15,7 +15,7 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 namespace Acts::Python {
-void addTracccChain(Context& /* ctx */) {
+void addTracccChainConfig(Context& /* ctx */) {
 
 }
 

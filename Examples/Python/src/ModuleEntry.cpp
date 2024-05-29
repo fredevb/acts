@@ -65,7 +65,8 @@ void addTrackFitting(Context& ctx);
 void addTrackFinding(Context& ctx);
 void addVertexing(Context& ctx);
 void addAmbiguityResolution(Context& ctx);
-void addTracccChain(Context& ctx);
+void addTracccChainConfig(Context& ctx);
+void addTracccChainHost(Context& ctx);
 
 // Plugins
 void addDigitization(Context& ctx);
@@ -128,7 +129,8 @@ PYBIND11_MODULE(ActsPythonBindings, m) {
   addTrackFinding(ctx);
   addVertexing(ctx);
   addAmbiguityResolution(ctx);
-  addTracccChain(ctx);
+  addTracccChainConfig(ctx);
+  addTracccChainHost(ctx);
 
   addDigitization(ctx);
   addPythia8(ctx);

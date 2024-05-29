@@ -53,7 +53,7 @@
 #include <memory>
 #include <map>
 
-namespace ActsExamples::TracccConversion {
+namespace ActsExamples::Traccc::Common {
 
 /// @brief Gets the time of the cell.
 /// @note Currently, it always returns 0.
@@ -155,19 +155,19 @@ inline auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const 
 /// @brief This class provides functions for converting input and output data using the data structures in Acts Examples.
 /// @tparam detector_t The type of the detray detector this converter expects.
 template <typename detector_t>
-class Converter{
+class TracccChainDataConverter{
 
     public:
     
-    Converter(
-        std::shared_ptr<const Acts::TrackingGeometry> tg,
-        std::shared_ptr<const detector_t> det,
+    TracccChainDataConverter(
+        const Acts::TrackingGeometry& tg,
+        const detector_t& det,
         const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccMap):
         trackingGeometry(tg),
         detector(det),
         digitizationConfig(tracccConfig(dccMap, getSegmentation)),
-        surfaceTransforms(traccc::io::alt_read_geometry(*det)),
-        barcodeMap(Acts::TracccPlugin::createBarcodeMap(*det))
+        surfaceTransforms(traccc::io::alt_read_geometry(det)),
+        barcodeMap(Acts::TracccPlugin::createBarcodeMap(det))
     {}
 
     /// @brief Converts a map of cells to traccc input
@@ -192,9 +192,9 @@ class Converter{
         auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
         TrackContainer tracks(trackContainer, trackStateContainer);
 
-        auto [sourceLinks, measurements] = getIndexSourceLinkAndMeasurements(*detector, ms);
+        auto [sourceLinks, measurements] = getIndexSourceLinkAndMeasurements(detector, ms);
 
-        Acts::TracccPlugin::makeTracks(ts, tracks, *detector, *trackingGeometry, measurements, sourceLinks);
+        Acts::TracccPlugin::makeTracks(ts, tracks, detector, trackingGeometry, measurements, sourceLinks);
 
         ConstTrackContainer constTracks{
             std::make_shared<Acts::ConstVectorTrackContainer>(std::move(*trackContainer)),
@@ -204,8 +204,8 @@ class Converter{
         return constTracks;
     }
     
-    std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
-    std::shared_ptr<const detector_t> detector;
+    const Acts::TrackingGeometry& trackingGeometry;
+    const detector_t& detector;
 
     // Cache the converted digitalization configuration, the surface transforms, and the barcode map.
     const traccc::digitization_config digitizationConfig;
