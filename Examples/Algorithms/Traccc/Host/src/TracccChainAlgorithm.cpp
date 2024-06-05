@@ -8,6 +8,8 @@
 
 // Acts examples include(s)
 #include "ActsExamples/Traccc/Host/TracccChainAlgorithm.hpp"
+#include "ActsExamples/Traccc/Common/MeasurementMapping.hpp"
+#include "ActsExamples/Traccc/Common/Debug.hpp"
 
 // System include(s).
 #include <cstdint>
@@ -17,6 +19,7 @@
 #include <memory>
 #include <type_traits>
 #include <tuple>
+#include <sstream>
 
 #include <stdexcept>
 
@@ -46,8 +49,9 @@ const ActsExamples::AlgorithmContext& ctx) const {
   typename HostTypes::AmbiguityResolutionAlgorithmType::output_type resolvedTrackStates{&mr};
 
   const auto cellsMap = m_inputCells(ctx);
+  std::cout << cellsMap.size() << std::endl;
 
-  auto [cells, modules] = dataConverter.convertInput(cellsMap, &mr);
+  auto [cells, modules] = dataConverter.createTracccInput(cellsMap, &mr);
 
   ACTS_VERBOSE("Converted the Acts input data to traccc input data");
 
@@ -81,7 +85,19 @@ const ActsExamples::AlgorithmContext& ctx) const {
   
   ACTS_INFO("Ran the ambiguity resolution algorithm");
 
-  auto result = dataConverter.convertOutput(measurements, resolvedTrackStates); 
+  const auto actsMeasurements = m_inputMeasurements(ctx); //Common::createActsMeasurements(detector, measurements);
+  if (measurements.size() != actsMeasurements.size()){
+    std::stringstream ss;
+    ss << "Number of measurements do not match (traccc: " << measurements.size() << ", acts: " << actsMeasurements.size() << ")";
+    ACTS_WARNING(ss.str());
+  }
+  const auto mcm = Common::measurementConversionMap(detector, measurements, actsMeasurements);
+
+  auto convertedMeasurements = Common::createActsMeasurements(detector, measurements);
+  auto indexMap = Common::getMeasurementMatchingMap(convertedMeasurements, actsMeasurements);
+  std::cout << Common::Debug::pairingStatistics(convertedMeasurements, actsMeasurements, indexMap) << std::endl;
+
+  auto result = dataConverter.createActsTracks(resolvedTrackStates, mcm); 
 
   ACTS_VERBOSE("Converted the traccc track data to Acts track data");
 

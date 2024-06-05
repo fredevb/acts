@@ -12,6 +12,10 @@
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 
+// Plugin include(s)
+#include "Acts/Plugins/Traccc/BarcodeMap.hpp"
+#include "Acts/Plugins/Traccc/Detail/Module.hpp"
+
 // Detray include(s)
 #include "detray/core/detector.hpp"
 
@@ -52,70 +56,9 @@ struct cell_order {
     }
 };  // struct cell_order
 
-/// Helper function which finds module from csv::cell in the geometry and
-/// digitization config, and initializes the modules limits with the cell's
-/// properties
-inline traccc::cell_module get_module(const std::uint64_t geometry_id,
-                               const traccc::geometry* geom,
-                               const traccc::digitization_config* dconfig,
-                               const std::uint64_t original_geometry_id) {
-
-    traccc::cell_module result;
-    result.surface_link = detray::geometry::barcode{geometry_id};
-
-    // Find/set the 3D position of the detector module.
-    if (geom != nullptr) {
-
-        // Check if the module ID is known.
-        if (!geom->contains(result.surface_link.value())) {
-            throw std::runtime_error(
-                "Could not find placement for geometry ID " +
-                std::to_string(result.surface_link.value()));
-        }
-
-        // Set the value on the module description.
-        result.placement = (*geom)[result.surface_link.value()];
-    }
-
-    // Find/set the digitization configuration of the detector module.
-    if (dconfig != nullptr) {
-
-        // Check if the module ID is known.
-        const traccc::digitization_config::Iterator geo_it =
-            dconfig->find(original_geometry_id);
-        if (geo_it == dconfig->end()) {
-            throw std::runtime_error(
-                "Could not find digitization config for geometry ID " +
-                std::to_string(original_geometry_id));
-        }
-
-        // Set the value on the module description.
-        const auto& binning_data = geo_it->segmentation.binningData();
-        assert(binning_data.size() >= 2);
-        result.pixel = {binning_data[0].min, binning_data[1].min,
-                        binning_data[0].step, binning_data[1].step};
-    }
-
-    return result;
-}
-
 }
 
 namespace Acts::TracccPlugin{
-
-/// @brief Creates an map from Acts geometry ID (value) to detray barcode
-/// by only using the information contained in the detray detector.
-/// @param detector the detray detector.
-/// @return A map: geometry ID value type -> detray geometry barcode.
-template <typename metadata_t, typename container_t>
-inline std::map<std::uint64_t, detray::geometry::barcode> createBarcodeMap(const detray::detector<metadata_t, container_t>& detector){
-    // Construct a map from Acts surface identifiers to Detray barcodes.
-    std::map<std::uint64_t, detray::geometry::barcode> barcode_map;
-    for (const auto& surface : detector.surfaces()) {
-        barcode_map[surface.source] = surface.barcode();
-    }
-    return barcode_map;
-}
 
 /// @brief Converts a geometry ID -> traccc cells map to traccc cells and modules.
 /// @param mr The memory resource to use.
@@ -156,7 +99,7 @@ inline auto createCellsAndModules(
 
         // Add the module and its cells to the output.
         out.modules.push_back(
-            get_module(geometry_id, geom, dconfig, original_geometry_id));
+            Detail::get_module(geometry_id, geom, dconfig, original_geometry_id));
         for (auto& cell : cells) {
             out.cells.push_back(cell);
             // Set the module link.

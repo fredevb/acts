@@ -2078,6 +2078,7 @@ def addTracccChain(
     digiConfigFile: Union[Path, str],
     chainConfig,
     inputCells:  Optional[str]= "cells", #"InputCells",
+    inputMeasurements:  Optional[str]= "measurements",
     outputTracks: Optional[str]="traccc_tracks",
     outputDirRoot: Optional[Union[Path, str]] = None,
     outputDirCsv: Optional[Union[Path, str]] = None,
@@ -2092,6 +2093,7 @@ def addTracccChain(
     alg = TracccChainAlgorithmHost(
         level=customLogLevel(),
         inputCells=inputCells,
+        inputMeasurements=inputMeasurements,
         outputTracks=outputTracks,
         trackingGeometry=trackingGeometry,
         field=field,

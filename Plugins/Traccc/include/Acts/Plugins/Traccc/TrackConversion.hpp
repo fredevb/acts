@@ -9,7 +9,7 @@
 #pragma once
 
 // Plugin include(s)
-#include "Acts/Plugins/Traccc/AlgebraConversion.hpp"
+#include "Acts/Plugins/Traccc/Detail/AlgebraConversion.hpp"
 
 // Acts include(s)
 #include "Acts/EventData/TrackParameters.hpp"
@@ -28,6 +28,8 @@
 
 // System include(s)
 #include <memory>
+#include <variant>
+#include <stdexcept>
 
 namespace Acts::TracccPlugin {
 
@@ -77,12 +79,12 @@ inline void copyFittingResult(const traccc::fitting_result<algebra_t>& source, A
 }
 
 /// @brief Copies data from a traccc track state to a Acts track state proxy.
-/// @note The source link, calibrated measurements, and similar data
-/// which is not present in a traccc track state will not be set or modified.
 /// @param source the traccc track state to copy from.
 /// @param destination the Acts track state proxy to copy to.
 /// @param detector the detray detector of the traccc track track state.
 /// @param trackingGeometry the Acts tracking geometry of the Acts track state proxy.
+/// @note The source link, calibrated measurements, and similar data
+/// which is not present in a traccc track state will not be set or modified.
 template <typename algebra_t, typename metadata_t, typename container_t, typename trajectory_t, std::size_t M>
 inline void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::TrackStateProxy<trajectory_t, M, false>& destination, const detray::detector<metadata_t, container_t>& detector, const Acts::TrackingGeometry& trackingGeometry) {
     auto geoID = Acts::GeometryIdentifier(detector.surface(source.surface_link()).source);
@@ -116,7 +118,7 @@ inline void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::T
     typeFlags.set(TrackStateFlag::MeasurementFlag);
 }
 
-/// @brief Gets the fitting result of a traccc container element.
+/// @brief Gets the fitting result of a traccc container element (const).
 /// @param e the traccc container element.
 /// @return the fitting result contained in the container element (i.e., e.header)
 template <typename algebra_t>
@@ -124,7 +126,15 @@ inline const traccc::fitting_result<algebra_t>& getFittingResult(const traccc::c
     return e.header;
 }
 
-/// @brief Gets the track states of a traccc container element.
+/// @brief Gets the fitting result of a traccc container element (non const).
+/// @param e the traccc container element.
+/// @return the fitting result contained in the container element (i.e., e.header)
+template <typename algebra_t>
+inline traccc::fitting_result<algebra_t>& getFittingResult(traccc::container_element<traccc::fitting_result<algebra_t> &, vecmem::vector<traccc::track_state<algebra_t>> &>& e){
+    return e.header;
+}
+
+/// @brief Gets the track states of a traccc container element (const).
 /// @param e the traccc container element.
 /// @return the track states contained in the container element (i.e., e.items)
 template <typename algebra_t>
@@ -132,71 +142,82 @@ inline const vecmem::vector<traccc::track_state<algebra_t>>& getTrackStates(cons
     return e.items;
 }
 
+/// @brief Gets the track states of a traccc container element (non const).
+/// @param e the traccc container element.
+/// @return the track states contained in the container element (i.e., e.items)
+template <typename algebra_t>
+inline vecmem::vector<traccc::track_state<algebra_t>>& getTrackStates(traccc::container_element<traccc::fitting_result<algebra_t> &, vecmem::vector<traccc::track_state<algebra_t>> &>& e){
+    return e.items;
+}
+
 /// @brief Creates a new track in the Acts track container.
 /// This new track will contain data copied from the traccc track container element (i.e, track and track state data)
 /// and will also set the calibrated measurements and uncalibrated source link for each track state.
-/// @param tracccContainerElement The traccc container element to copy from.
-/// @param trackContainer The Acts track container. This is the container where the new track will be made.
+/// @param tracccTrack The traccc container element to copy from.
+/// @param actsTrackContainer The Acts track container. This is the container where the new track will be made.
 /// @param detector The detray detector.
 /// @param trackingGeometry The Acts tracking geometry.
-/// @param measurements A vector of calibrated measurements.
-/// @param sourceLinks A vector uncalibrated sourcelinks.
-/// @note The measurement index of each traccc track state must index its corresponding element in the calibrated measurements and uncalibrated sourcelinks vectors.
+/// @note The source link, calibrated measurements, and similar data
+/// which is not present in a traccc track state will not be set or modified.
 template <typename algebra_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
-inline void makeTrack(
-    const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& tracccContainerElement, 
-    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& trackContainer, 
+inline auto makeTrack(
+    const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& tracccTrack, 
+    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& actsTrackContainer, 
     const detray::detector<metadata_t, container_t>& detector, 
-    const Acts::TrackingGeometry& trackingGeometry, 
-    const std::vector<Acts::Measurement<Acts::BoundIndices, 2>>& measurements,
-    const std::vector<Acts::SourceLink>& sourceLinks) {
+    const Acts::TrackingGeometry& trackingGeometry) {
 
-    auto fittingResult = getFittingResult(tracccContainerElement);
-    auto trackStates = getTrackStates(tracccContainerElement);
+    auto fittingResult = getFittingResult(tracccTrack);
+    auto trackStates = getTrackStates(tracccTrack);
 
-    auto track = trackContainer.makeTrack();
-
+    auto track = actsTrackContainer.makeTrack();
     copyFittingResult(fittingResult, track, detector, trackingGeometry);
 
-    // Set the track states
+    // Make the track states.
     for (const auto& tstate : trackStates){
         auto astate = track.appendTrackState();
-
         copyTrackState(tstate, astate, detector, trackingGeometry);
+    }
 
-        auto idx = tstate.get_measurement().measurement_id;
+    track.linkForward();
 
-        auto& measurement = measurements[idx];
-        astate.setCalibrated(measurement);
+    return track;
+}
 
-        auto sourceLink = sourceLinks[idx];
-        astate.setUncalibratedSourceLink(sourceLink);
+template <typename algebra_t>
+void mapMeasurementIDs(
+    traccc::container_element<traccc::fitting_result<algebra_t> &, vecmem::vector<traccc::track_state<algebra_t>> &>& tracccTrack, 
+    const std::map<std::size_t, std::size_t>& map){
+    for (auto& tstate : getTrackStates(tracccTrack)){
+        tstate.get_measurement().measurement_id = map[tstate.get_measurement().measurement_id];
     }
 }
 
-/// @brief Creates new tracks in the Acts track container.
-/// A new track will be created for each element in the traccc track container. 
-/// Each new track will contain data copied from a traccc track container element (i.e, track and track state data) 
-/// and will also set the calibrated measurements and uncalibrated source link for each track state.
-/// @param tracccTrackContainer The traccc container to copy the tracks from.
-/// @param ActsTrackContainer The Acts track container. This is the container where the new track will be made.
-/// @param detector The detray detector.
-/// @param trackingGeometry The Acts tracking geometry.
+template <typename algebra_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t>
+void setSourceAndMeasurements(
+    const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& tracccTrack,
+    Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& actsTrack,
+    const std::map<traccc::measurement, Acts::BoundVariantMeasurement>& map){
+
+    auto tracccTrackStates = getTrackStates(tracccTrack);
+    auto actsTrackStates = actsTrack.trackStates();
+
+    assert(tracccTrackStates.size() == actsTrack.nTrackStates());
+    std::size_t i = 0;
+    for (auto it = actsTrackStates.begin(); it != actsTrackStates.end(); ++it){
+        //auto measurementIdx = tracccTrackStates[i].get_measurement().measurement_id;
+        //auto& measurement = measurements[measurementIdx];
+        auto& measurement = map.at(tracccTrackStates[i].get_measurement());
+        std::visit([it](auto& m){ 
+            (*it).setCalibrated(m);
+            (*it).setUncalibratedSourceLink(m.sourceLink());
+        }, measurement);
+        i++;
+    }
+}
+
 /// @param measurements A vector of calibrated measurements.
 /// @param sourceLinks A vector uncalibrated sourcelinks.
 /// @note The measurement index of each traccc track state must index its corresponding element in the calibrated measurements and uncalibrated sourcelinks vectors.
-/// @note This function repeatedly calls the makeTrack function in this plugin.
-template <typename traccc_track_container_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
-inline void makeTracks(
-    const traccc_track_container_t& tracccTrackContainer, 
-    Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& ActsTrackContainer, 
-    const detray::detector<metadata_t, container_t>& detector, 
-    const Acts::TrackingGeometry& trackingGeometry, 
-    const std::vector<Acts::Measurement<Acts::BoundIndices, 2>>& measurements, 
-    const std::vector<Acts::SourceLink>& sourceLinks) {
-    for (std::size_t i = 0; i < tracccTrackContainer.size(); i++) {
-        makeTrack(tracccTrackContainer[i], ActsTrackContainer, detector, trackingGeometry, measurements, sourceLinks);
-    }
-}
+
 
 }

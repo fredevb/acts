@@ -47,6 +47,9 @@
 // VecMem include(s).
 #include <vecmem/memory/memory_resource.hpp>
 
+// Boost include(s)
+#include <boost/range/combine.hpp>
+
 // System include(s).
 #include <cstdint>
 #include <cstdlib>
@@ -129,29 +132,6 @@ inline traccc::digitization_config tracccConfig(
     return traccc::digitization_config(vec);
 }
 
-/// @brief Creates a source links and measurements. 
-/// Creates the measurements by copying the data in the traccc measurements.
-/// @param detector The detray detector
-/// @param measurements The traccc measurements
-/// @return A tuple containing a vector of source links and a vector of Acts measurements.
-/// @note The indices of the measurements and source links corresponds to the index of their
-/// respective traccc measurement in the traccc measurement vector.
-template <typename detector_t, typename allocator_t>
-inline auto getIndexSourceLinkAndMeasurements(const detector_t& detector, const std::vector<traccc::measurement, allocator_t>& measurements){
-    std::vector<Acts::SourceLink>sourceLinks;
-    std::vector<Acts::Measurement<Acts::BoundIndices, 2>> measurementContainer;
-
-    for (const traccc::measurement& m : measurements) 
-    {
-        Acts::GeometryIdentifier moduleGeoId(detector.surface(m.surface_link).source);
-        Index measurementIdx = measurementContainer.size();
-        IndexSourceLink idxSourceLink{moduleGeoId, measurementIdx};
-        sourceLinks.insert(sourceLinks.end(), Acts::SourceLink{idxSourceLink});
-        measurementContainer.push_back(Acts::TracccPlugin::measurement<2UL>(m, Acts::SourceLink{idxSourceLink}));
-    }
-    return std::make_tuple(std::move(sourceLinks), std::move(measurementContainer));
-}
-
 /// @brief This class provides functions for converting input and output data using the data structures in Acts Examples.
 /// @tparam detector_t The type of the detray detector this converter expects.
 template <typename detector_t>
@@ -174,32 +154,41 @@ class TracccChainDataConverter{
     /// @param map The geometry id -> cell collection map which corresponds to each geometry's cells.
     /// @param mr The memory resource to use.
     /// @returns The converted input as a tuple containing traccc input data, i.e. (cells, modules).
-    auto convertInput(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>& map, vecmem::memory_resource* mr) const {
+    auto createTracccInput(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cell>>& map, vecmem::memory_resource* mr) const {
         auto tcm = tracccCellsMap(map);
         return Acts::TracccPlugin::createCellsAndModules(
             mr, tcm, &surfaceTransforms, &digitizationConfig, &barcodeMap);
     }
 
     /// @brief Converts a container of traccc tracks to a container of Acts tracks.
-    /// @param ms The traccc measurements 
     /// (this is needed to set the source links and calibrated data of the newly converted track states).
-    /// @param ts The (indexable) container of traccc tracks.
+    /// @param tracccTrackContainer The (indexable) container of traccc tracks.
+    /// @param sourceLinks the source links used to set the uncalibrated source links.
+    /// The source link is set by indexing the container using the traccc track state measurement id.
+    /// @param measurements the measurements used to set the calibrated data.
+    /// The measurement is set by indexing the container using the traccc track state measurement id.
     /// @return An Acts const track container containing the same track data as the traccc tracks container.
     /// Furthermore, the track states sourcelinks and measurements are also set.
-    template <typename traccc_track_container_t, typename allocator_t>
-    auto convertOutput(const std::vector<traccc::measurement, allocator_t>& ms, const traccc_track_container_t& ts) const {
+    template <typename traccc_track_container_t>
+    auto createActsTracks(
+        const traccc_track_container_t& tracccTrackContainer,
+        const std::map<traccc::measurement, Acts::BoundVariantMeasurement>& measurementConversionMap
+    ) const {
         auto trackContainer = std::make_shared<Acts::VectorTrackContainer>();
         auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
         TrackContainer tracks(trackContainer, trackStateContainer);
 
-        auto [sourceLinks, measurements] = getIndexSourceLinkAndMeasurements(detector, ms);
+        for (std::size_t i = 0; i < tracccTrackContainer.size(); i++) {
+            auto ttrack = tracccTrackContainer[i];
+            auto atrack = Acts::TracccPlugin::makeTrack(ttrack, tracks, detector, trackingGeometry);
 
-        Acts::TracccPlugin::makeTracks(ts, tracks, detector, trackingGeometry, measurements, sourceLinks);
+            Acts::TracccPlugin::setSourceAndMeasurements(ttrack, atrack, measurementConversionMap);
+        }
 
         ConstTrackContainer constTracks{
             std::make_shared<Acts::ConstVectorTrackContainer>(std::move(*trackContainer)),
             std::make_shared<Acts::ConstVectorMultiTrajectory>(std::move(*trackStateContainer))
-            };
+        };
 
         return constTracks;
     }

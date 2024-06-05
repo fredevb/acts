@@ -54,6 +54,7 @@ using CellsMapType = std::map<Acts::GeometryIdentifier, std::vector<Cluster::Cel
 
 struct Config {
     std::string inputCells;
+    std::string inputMeasurements;
     std::string outputTracks;
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry = nullptr;
     std::shared_ptr<const Acts::ConstantBField> field;
@@ -75,6 +76,7 @@ protected:
 Config m_cfg;
 
 ReadDataHandle<CellsMapType> m_inputCells{this, "InputCells"};
+ReadDataHandle<MeasurementContainer> m_inputMeasurements{this, "InputMeasurements"};
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
 // Ensure order of destructor call.
@@ -82,9 +84,6 @@ vecmem::host_memory_resource hostMemoryResource;
 const DetectorHostType detector;
 const FieldType field;
 const TracccChainDataConverter<DetectorHostType> dataConverter;
-//std::shared_ptr<const DetectorHostType> detector;
-//std::shared_ptr<const FieldType> field;
-//std::shared_ptr<const TracccChainDataConverter<DetectorHostType>> dataConverter;
 
 private:
 

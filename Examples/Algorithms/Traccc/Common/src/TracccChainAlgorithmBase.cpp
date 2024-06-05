@@ -75,13 +75,7 @@ ActsExamples::Traccc::Common::TracccChainAlgorithmBase::TracccChainAlgorithmBase
       field(Acts::CovfieConversion::covfieField(*m_cfg.field)),
       dataConverter(TracccChainDataConverter<DetectorHostType>(*m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs))
 {
-
   m_inputCells.initialize(m_cfg.inputCells);
+  m_inputMeasurements.initialize(m_cfg.inputMeasurements);
   m_outputTracks.initialize(m_cfg.outputTracks);
-
-  // Read detector from file as temporary solution until detray plugin is complete.
-
-  //detector = std::make_shared<const DetectorHostType>(readDetector<DetectorHostType>(&hostMemoryResource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"));
-  //field = std::make_shared<const FieldType>(Acts::CovfieConversion::covfieField(*m_cfg.field));
-  //dataConverter = std::make_shared<const TracccChainDataConverter<DetectorHostType>>(m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs);
 }

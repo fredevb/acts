@@ -245,6 +245,7 @@ addDigitization(
     outputDirRoot=outputDir,
     outputDirCsv=outputDir,
     rnd=rnd,
+    minEnergyDeposit=0,
 )
 
 addTracccChain(
