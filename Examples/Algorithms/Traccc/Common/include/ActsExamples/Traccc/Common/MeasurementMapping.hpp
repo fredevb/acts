@@ -62,11 +62,11 @@ inline Acts::GeometryIdentifier getGeometryID(const Acts::BoundVariantMeasuremen
         }, measurement);
 }
 
-inline bool mEq(const Acts::BoundVariantMeasurement& measurement1, const Acts::BoundVariantMeasurement& measurement2, const double squareRadius = 16.){
+inline bool mEq(const Acts::BoundVariantMeasurement& measurement1, const Acts::BoundVariantMeasurement& measurement2, const double radius = .1){
     auto gidEq = getGeometryID(measurement1) == getGeometryID(measurement2);
     
     auto sqNorm = (Acts::TracccPlugin::getLocal(measurement1) - Acts::TracccPlugin::getLocal(measurement2)).squaredNorm();
-    auto locEq = sqNorm <= squareRadius;
+    auto locEq = sqNorm <= radius * radius;
 
     return gidEq && locEq;
 }

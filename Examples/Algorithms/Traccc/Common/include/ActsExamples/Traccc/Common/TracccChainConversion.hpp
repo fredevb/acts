@@ -85,10 +85,6 @@ inline unsigned int getColumn(const Cluster::Cell& cell){
     return static_cast<unsigned int>(cell.bin[1]);
 }
 
-inline Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
-    return dcc.geometricDigiConfig.segmentation;
-}
-
 /// @brief Converts a "geometry ID -> generic cell collection type" map to a "geometry ID -> traccc cell collection" map.
 /// @note The function sets the module link of the cells in the output to 0.
 /// @return Map from geometry ID to its cell data (as a vector of traccc cell data)
@@ -115,15 +111,17 @@ inline std::map<std::uint64_t, std::vector<traccc::cell>> tracccCellsMap(
     return tracccCellMap;
 }
 
+inline Acts::BinUtility getSegmentation(const DigiComponentsConfig& dcc){
+    return dcc.geometricDigiConfig.segmentation;
+}
+
 /// @brief Creates a traccc digitalization config from an Acts geometry hierarchy map
 /// that contains the digitization configuration.
 /// @param config the Acts geometry hierarchy map that contains the digitization configuration.
-/// @param getSegmentation a function that gets the segmentation from an item in the geometry hierarchy map.
 /// @return a traccc digitization config.
-template <typename data_t, typename get_segmentation_fn_t>
+template <typename data_t>
 inline traccc::digitization_config tracccConfig(
-    const Acts::GeometryHierarchyMap<data_t>& config,
-    const get_segmentation_fn_t& getSegmentation){
+    const Acts::GeometryHierarchyMap<data_t>& config){
     using ElementType = std::pair<Acts::GeometryIdentifier, traccc::module_digitization_config>;
     std::vector<ElementType> vec;
     for (auto& e : config.getElements()){
@@ -145,7 +143,7 @@ class TracccChainDataConverter{
         const Acts::GeometryHierarchyMap<DigiComponentsConfig>& dccMap):
         trackingGeometry(tg),
         detector(det),
-        digitizationConfig(tracccConfig(dccMap, getSegmentation)),
+        digitizationConfig(tracccConfig(dccMap)),
         surfaceTransforms(traccc::io::alt_read_geometry(det)),
         barcodeMap(Acts::TracccPlugin::createBarcodeMap(det))
     {}

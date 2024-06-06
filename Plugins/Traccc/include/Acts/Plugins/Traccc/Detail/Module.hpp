@@ -37,7 +37,7 @@ namespace Acts::TracccPlugin::Detail {
 /// Helper function which finds module from csv::cell in the geometry and
 /// digitization config, and initializes the modules limits with the cell's
 /// properties
-inline traccc::cell_module get_module(const std::uint64_t geometry_id,
+traccc::cell_module get_module(const std::uint64_t geometry_id,
                                const traccc::geometry* geom,
                                const traccc::digitization_config* dconfig,
                                const std::uint64_t original_geometry_id) {
@@ -73,9 +73,15 @@ inline traccc::cell_module get_module(const std::uint64_t geometry_id,
 
         // Set the value on the module description.
         const auto& binning_data = geo_it->segmentation.binningData();
-        assert(binning_data.size() >= 2);
-        result.pixel = {binning_data[0].min, binning_data[1].min,
-                        binning_data[0].step, binning_data[1].step};
+        assert(binning_data.size() > 0);
+        result.pixel.min_center_x = binning_data[0].min + binning_data[0].step * static_cast<traccc::scalar>(0.5);
+        result.pixel.pitch_x = binning_data[0].step;
+        if (binning_data.size() > 1) {
+            result.pixel.min_center_y = binning_data[1].min + binning_data[1].step * static_cast<traccc::scalar>(0.5);
+            result.pixel.pitch_y = binning_data[1].step;
+        }
+        //result.pixel.dimension = geo_it->dimensions;
+        //result.pixel.variance_y = geo_it->variance_y;
     }
 
     return result;
