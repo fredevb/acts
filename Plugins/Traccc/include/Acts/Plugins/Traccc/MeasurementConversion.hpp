@@ -98,6 +98,9 @@ inline Acts::BoundVariantMeasurement boundVariantMeasurement(const traccc::measu
     }
 }
 
+/// @brief Get the the local position of the measurement.
+/// @param measurement the Acts measurement.
+/// @return A two-dimensional vector containing the local position.
 template <std::size_t dim>
 inline Acts::ActsVector<2> getLocal(const Acts::Measurement<Acts::BoundIndices, dim>& measurement){
     traccc::scalar loc0 = 0;
@@ -111,10 +114,16 @@ inline Acts::ActsVector<2> getLocal(const Acts::Measurement<Acts::BoundIndices, 
     return Acts::ActsVector<2>(loc0, loc1);
 }
 
+/// @brief Get the the local position of the measurement.
+/// @param measurement the Acts bound variant measurement.
+/// @return A two-dimensional vector containing the local position.
 inline Acts::ActsVector<2> getLocal(const Acts::BoundVariantMeasurement& measurement){
     return std::visit([](auto& m) { return getLocal(m); }, measurement);
 }
 
+/// @brief Get the the variance of the measurement.
+/// @param measurement the Acts measurement.
+/// @return A two-dimensional vector containing the variance.
 template <std::size_t dim>
 inline Acts::ActsVector<2> getVariance(const Acts::Measurement<Acts::BoundIndices, dim>& measurement){
     traccc::scalar var0 = 0;
@@ -128,51 +137,11 @@ inline Acts::ActsVector<2> getVariance(const Acts::Measurement<Acts::BoundIndice
     return Acts::ActsVector<2>(var0, var1);
 }
 
+/// @brief Get the the variance of the measurement.
+/// @param measurement the Acts bound variant measurement.
+/// @return A two-dimensional vector containing the variance.
 inline Acts::ActsVector<2> getVariance(const Acts::BoundVariantMeasurement& measurement){
     return std::visit([](auto& m) { return getVariance(m); }, measurement);
-}
-
-/// @brief Converts a geometry ID -> traccc cells map to traccc cells and modules.
-/// @param mr The memory resource to use.
-/// @param cellsMap A map from Acts geometry ID (value) to traccc cell.
-/// @param geom The traccc geometry 
-/// @param dconfig The traccc digitization configuration.
-/// @param barcode_map A map from Acts geometry IDs (value) to detray barcodes.
-/// @return A tuple containing the traccc cells (first item) and traccc modules (second item).
-template <typename measurement_t>
-inline auto createMeasurementsAndModules(
-    vecmem::memory_resource* mr,
-    std::map<std::uint64_t, measurement_t>& measurementMap,
-    const traccc::geometry* geom,
-    const traccc::digitization_config* dconfig,
-    const std::map<std::uint64_t, detray::geometry::barcode>* barcodeMap = nullptr) {
-
-    traccc::measurement_collection_types::host tracccMeasurements(mr);
-    traccc::cell_module_collection_types::host tracccModules(mr);
-
-    //detray::barcode::value_t;
-
-    for (const auto& [original_geometry_id, measurements] : measurementMap) {
-
-        auto geometry_id = barcodeMapTry(barcodeMap, original_geometry_id);
-
-        auto mod = get_module(geometry_id, geom, dconfig, original_geometry_id);
-        tracccModules.push_back(mod);
-        for (auto& measurement : measurements) {
-            traccc::measurement m{
-                measurement.local(),
-                measurement.variance(),
-                geometry_id,
-                measurement.measurementID(),
-                tracccModules.size() - 1,
-                std::numeric_limits<std::size_t>::max(),
-                2u,
-                {{0u, 1u}},
-            };
-            tracccMeasurements.push_back(std::move(m));
-        }
-    }
-    return std::make_tuple(std::move(tracccMeasurements), std::move(tracccModules));
 }
 
 }

@@ -11,29 +11,14 @@
 
 // Acts include(s)
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/Cluster.hpp"
-#include "ActsExamples/EventData/IndexSourceLink.hpp"
-#include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/Track.hpp"
-#include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
-#include "ActsExamples/Framework/ProcessCode.hpp"
-#include "ActsExamples/Digitization/DigitizationConfig.hpp"
-#include "Acts/Geometry/TrackingGeometry.hpp"
-#include "Acts/MagneticField/MagneticFieldProvider.hpp"
-#include "Acts/Definitions/Algebra.hpp"
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
-#include "detray/detectors/bfield.hpp"
 #include "detray/io/frontend/detector_reader.hpp"
-#include "detray/navigation/navigator.hpp"
-#include "detray/propagator/propagator.hpp"
-#include "detray/propagator/rk_stepper.hpp"
 
 // VecMem include(s).
-#include <vecmem/memory/host_memory_resource.hpp>
+#include <vecmem/memory/memory_resource.hpp>
 
 // System include(s)
 #include <memory>
@@ -73,7 +58,14 @@ ActsExamples::Traccc::Common::TracccChainAlgorithmBase::TracccChainAlgorithmBase
       m_cfg(std::move(cfg)),
       detector((TestValidConfig(), readDetector<DetectorHostType>(&hostMemoryResource, "/home/frederik/Desktop/CERN-TECH/input/odd-detray_geometry_detray.json"))),
       field(Acts::CovfieConversion::covfieField(*m_cfg.field)),
-      dataConverter(TracccChainDataConverter<DetectorHostType>(*m_cfg.trackingGeometry, detector, m_cfg.digitizationConfigs))
+      converter{
+        *m_cfg.trackingGeometry,
+        detector,
+        Conversion::tracccConfig(m_cfg.digitizationConfigs),
+        traccc::io::alt_read_geometry(detector),
+        Acts::TracccPlugin::createBarcodeMap(detector),
+        logger()
+      }
 {
   m_inputCells.initialize(m_cfg.inputCells);
   m_inputMeasurements.initialize(m_cfg.inputMeasurements);

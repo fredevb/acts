@@ -8,32 +8,29 @@
 
 #pragma once
 
-// Traccc plugin include(s)
-#include "ActsExamples/Traccc/Common/TracccChainConfig.hpp"
-#include "ActsExamples/Traccc/Common/TracccChainConversion.hpp"
-
 // Acts include(s)
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Cluster.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Digitization/DigitizationConfig.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
+#include "Acts/MagneticField/ConstantBField.hpp"
 #include "Acts/Definitions/Algebra.hpp"
+
+// Acts Examples include(s)
+#include "ActsExamples/Traccc/Common/Converter.hpp"
+#include "ActsExamples/Traccc/Common/TracccChainConfig.hpp"
+
+// Covfie Plugin include(s)
+#include "Acts/Plugins/Covfie/CovfieConversion.hpp"
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
-#include "detray/detectors/bfield.hpp"
-#include "detray/io/frontend/detector_reader.hpp"
-#include "detray/navigation/navigator.hpp"
-#include "detray/propagator/propagator.hpp"
-#include "detray/propagator/rk_stepper.hpp"
 
 // VecMem include(s).
 #include <vecmem/memory/host_memory_resource.hpp>
@@ -79,14 +76,15 @@ ReadDataHandle<CellsMapType> m_inputCells{this, "InputCells"};
 ReadDataHandle<MeasurementContainer> m_inputMeasurements{this, "InputMeasurements"};
 WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
-// Ensure order of destructor call.
+// Beware of declaration order. Ensure order of destructor call.
 vecmem::host_memory_resource hostMemoryResource;
 const DetectorHostType detector;
 const FieldType field;
-const TracccChainDataConverter<DetectorHostType> dataConverter;
+const Converter converter;
 
 private:
 
+/// @brief Test if the configuration is valid.
 void TestValidConfig(){
   if (m_cfg.inputCells.empty()) {
     throw std::invalid_argument("Missing input cells");

@@ -30,20 +30,18 @@
 #include <memory>
 #include <utility>
 
-// This code is borrowed from traccc/io/src/csv/read_cells.cpp with minor modifications
-// so that a cells map rather than a file path is needed.
 namespace Acts::TracccPlugin::Detail {
 
 /// Helper function which finds module from csv::cell in the geometry and
 /// digitization config, and initializes the modules limits with the cell's
 /// properties
-traccc::cell_module get_module(const std::uint64_t geometry_id,
+traccc::cell_module get_module(const std::uint64_t geometryID,
                                const traccc::geometry* geom,
                                const traccc::digitization_config* dconfig,
-                               const std::uint64_t original_geometry_id) {
+                               const std::uint64_t originalGeometryID) {
 
     traccc::cell_module result;
-    result.surface_link = detray::geometry::barcode{geometry_id};
+    result.surface_link = detray::geometry::barcode{geometryID};
 
     // Find/set the 3D position of the detector module.
     if (geom != nullptr) {
@@ -63,25 +61,25 @@ traccc::cell_module get_module(const std::uint64_t geometry_id,
     if (dconfig != nullptr) {
 
         // Check if the module ID is known.
-        const traccc::digitization_config::Iterator geo_it =
-            dconfig->find(original_geometry_id);
-        if (geo_it == dconfig->end()) {
+        const traccc::digitization_config::Iterator geoIt =
+            dconfig->find(originalGeometryID);
+        if (geoIt == dconfig->end()) {
             throw std::runtime_error(
                 "Could not find digitization config for geometry ID " +
-                std::to_string(original_geometry_id));
+                std::to_string(originalGeometryID));
         }
 
         // Set the value on the module description.
-        const auto& binning_data = geo_it->segmentation.binningData();
-        assert(binning_data.size() > 0);
-        result.pixel.min_center_x = binning_data[0].min + binning_data[0].step * static_cast<traccc::scalar>(0.5);
-        result.pixel.pitch_x = binning_data[0].step;
-        if (binning_data.size() > 1) {
-            result.pixel.min_center_y = binning_data[1].min + binning_data[1].step * static_cast<traccc::scalar>(0.5);
-            result.pixel.pitch_y = binning_data[1].step;
+        const auto& binningData = geoIt->segmentation.binningData();
+        assert(binningData.size() > 0);
+        result.pixel.min_center_x = binningData[0].min + binningData[0].step * static_cast<traccc::scalar>(0.5);
+        result.pixel.pitch_x = binningData[0].step;
+        if (binningData.size() > 1) {
+            result.pixel.min_center_y = binningData[1].min + binningData[1].step * static_cast<traccc::scalar>(0.5);
+            result.pixel.pitch_y = binningData[1].step;
         }
-        //result.pixel.dimension = geo_it->dimensions;
-        //result.pixel.variance_y = geo_it->variance_y;
+        //result.pixel.dimension = geoIt->dimensions;
+        //result.pixel.variance_y = geoIt->variance_y;
     }
 
     return result;

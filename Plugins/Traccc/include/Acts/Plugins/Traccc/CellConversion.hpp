@@ -38,8 +38,6 @@
 #include "traccc/io/read_cells.hpp"
 #include "traccc/io/data_format.hpp"
 
-// This code is borrowed from traccc/io/src/csv/read_cells.cpp with minor modifications
-// so that a cells map rather than a file path is needed.
 namespace {
 
 /// Comparator used for sorting cells. This sorting is one of the assumptions
@@ -72,34 +70,25 @@ inline auto createCellsAndModules(
     std::map<std::uint64_t, std::vector<traccc::cell>> cellsMap,
     const traccc::geometry* geom,
     const traccc::digitization_config* dconfig,
-    const std::map<std::uint64_t, detray::geometry::barcode>* barcode_map) {
+    const std::map<std::uint64_t, detray::geometry::barcode>* barcodeMap) {
 
     traccc::io::cell_reader_output out(mr);
 
-    // Sort the cells. Deduplication or not, they do need to be sorted.
+    // Sort the cells.
     for (auto& [_, cells] : cellsMap) {
         std::sort(cells.begin(), cells.end(), cell_order());
     }
 
     // Fill the output containers with the ordered cells and modules.
-    for (const auto& [original_geometry_id, cells] : cellsMap) {
+    for (const auto& [originalGeometryID, cells] : cellsMap) {
         // Modify the geometry ID of the module if a barcode map is
         // provided.
-        std::uint64_t geometry_id = original_geometry_id;
-        if (barcode_map != nullptr) {
-            const auto it = barcode_map->find(geometry_id);
-            if (it != barcode_map->end()) {
-                geometry_id = it->second.value();
-            } else {
-                throw std::runtime_error(
-                    "Could not find barcode for geometry ID " +
-                    std::to_string(geometry_id));
-            }
-        }
+        std::uint64_t geometryID = (barcodeMap != nullptr) ?
+            originalGeometryID : barcodeMap->at(geometryID).value();
 
         // Add the module and its cells to the output.
         out.modules.push_back(
-            Detail::get_module(geometry_id, geom, dconfig, original_geometry_id));
+            Detail::get_module(geometryID, geom, dconfig, originalGeometryID));
         for (auto& cell : cells) {
             out.cells.push_back(cell);
             // Set the module link.

@@ -8,14 +8,11 @@
 
 // Acts examples include(s)
 #include "ActsExamples/Traccc/Host/TracccChainAlgorithm.hpp"
-#include "ActsExamples/Traccc/Common/MeasurementMapping.hpp"
-#include "ActsExamples/Traccc/Common/Debug.hpp"
 
 // System include(s).
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
-#include <iostream>
 #include <memory>
 #include <type_traits>
 #include <tuple>
@@ -49,9 +46,8 @@ const ActsExamples::AlgorithmContext& ctx) const {
   typename HostTypes::AmbiguityResolutionAlgorithmType::output_type resolvedTrackStates{&mr};
 
   const auto cellsMap = m_inputCells(ctx);
-  std::cout << cellsMap.size() << std::endl;
 
-  auto [cells, modules] = dataConverter.createTracccInput(cellsMap, &mr);
+  auto [cells, modules] = converter.convertCells(cellsMap, &mr);
 
   ACTS_VERBOSE("Converted the Acts input data to traccc input data");
 
@@ -68,7 +64,8 @@ const ActsExamples::AlgorithmContext& ctx) const {
   ACTS_INFO("Ran the seeding algorithm");
 
   const typename FieldType::view_t fieldView(field);
-  static_assert(std::is_same<FieldType, typename detray::bfield::const_field_t>::value, "Currently, traccc expects a constant field.");
+
+  // Traccc expects a field vector of a constant field.
   params = trackParametersEstimationAlgorithm(spacepoints, seeds, fieldView.at(0.f,0.f,0.f));
   
   ACTS_INFO("Ran the parameters estimation algorithm");
@@ -85,19 +82,8 @@ const ActsExamples::AlgorithmContext& ctx) const {
   
   ACTS_INFO("Ran the ambiguity resolution algorithm");
 
-  const auto actsMeasurements = m_inputMeasurements(ctx); //Common::createActsMeasurements(detector, measurements);
-  if (measurements.size() != actsMeasurements.size()){
-    std::stringstream ss;
-    ss << "Number of measurements do not match (traccc: " << measurements.size() << ", acts: " << actsMeasurements.size() << ")";
-    ACTS_WARNING(ss.str());
-  }
-  const auto mcm = Common::measurementConversionMap(detector, measurements, actsMeasurements);
-
-  auto convertedMeasurements = Common::createActsMeasurements(detector, measurements);
-  auto indexMap = Common::getMeasurementMatchingMap(convertedMeasurements, actsMeasurements);
-  std::cout << Common::Debug::pairingStatistics(convertedMeasurements, actsMeasurements, indexMap) << std::endl;
-
-  auto result = dataConverter.createActsTracks(resolvedTrackStates, mcm); 
+  const auto actsMeasurements = m_inputMeasurements(ctx);
+  auto result = converter.convertTracks(resolvedTrackStates, measurements, actsMeasurements); 
 
   ACTS_VERBOSE("Converted the traccc track data to Acts track data");
 

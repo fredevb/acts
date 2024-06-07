@@ -8,75 +8,47 @@
 
 #pragma once
 
-// Plugin include(s)
-#include "Acts/Plugins/Traccc/CellConversion.hpp"
-#include "Acts/Plugins/Traccc/TrackConversion.hpp"
-#include "Acts/Plugins/Traccc/MeasurementConversion.hpp"
-#include "Acts/Plugins/Covfie/CovfieConversion.hpp"
-
 // Acts include(s)
-#include "Acts/Geometry/TrackingGeometry.hpp"
-#include "Acts/EventData/TrackContainer.hpp"
-#include "Acts/Geometry/GeometryHierarchyMap.hpp"
-#include "Acts/Utilities/BinUtility.hpp"
-#include "Acts/EventData/TrackContainer.hpp"
-#include "ActsExamples/EventData/Track.hpp"
-
-// Acts examples include(s)
-#include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
-#include "ActsExamples/Traccc/Common/LSH.hpp"
-
-// Traccc include(s)
-#include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
-#include "traccc/clusterization/clusterization_algorithm.hpp"
-#include "traccc/clusterization/spacepoint_formation_algorithm.hpp"
-#include "traccc/finding/finding_algorithm.hpp"
-#include "traccc/fitting/fitting_algorithm.hpp"
-#include "traccc/seeding/seeding_algorithm.hpp"
-#include "traccc/seeding/track_params_estimation.hpp"
-#include "traccc/finding/finding_config.hpp"
-#include "traccc/edm/cell.hpp"
-#include "traccc/edm/measurement.hpp"
-#include "traccc/io/digitization_config.hpp"
-
-// Detray include(s).
-#include "detray/core/detector.hpp"
-#include "detray/detectors/bfield.hpp"
-#include "detray/io/frontend/detector_reader.hpp"
-#include "detray/propagator/rk_stepper.hpp"
-
-// VecMem include(s).
-#include <vecmem/memory/memory_resource.hpp>
+#include "Acts/Definitions/Algebra.hpp"
+#include "ActsExamples/EventData/Measurement.hpp"
 
 // System include(s).
 #include <cstdint>
 #include <cstdlib>
-#include <memory>
 #include <map>
 #include <sstream>
 
-namespace ActsExamples::Traccc::Common::Debug {
+namespace ActsExamples::Traccc::Common::Measurement {
 
 namespace{
 
+/// @returns a nicely formated string of a vector representing a point.
 std::string toString(const Acts::ActsVector<2>& vec){
     std::stringstream ss;
     ss << "(" << vec[0] << ", " << vec[1] << ")";
     return ss.str();
 }
 
-// Structure to hold table data
+/// @brief Structure to hold table data
 struct MeasurementMatchRow {
     std::size_t idx1;
     Acts::ActsVector<2> local1;
     Acts::ActsVector<2> variance1;
+
     std::size_t idx2;
     Acts::ActsVector<2> local2;
     Acts::ActsVector<2> variance2;
+
     Acts::ActsScalar distanceLocal;
 };
 
-auto getTable(const std::vector<Acts::BoundVariantMeasurement>& measurements1, const std::vector<Acts::BoundVariantMeasurement>& measurements2, const std::map<std::size_t, std::size_t>& indexMap){
+/// @brief Creates a table with data and measurements aligned according to the index map.
+/// @param measurements1 the measurements (1).
+/// @param measurements2 the measurements (2).
+/// @param indexMap the index map: measurements1 indices -> measurement2 indices.
+/// The index map describes which elements are related in the two measurement collections.
+/// @return a vector of MeasurementMatchRow.
+auto createTable(const std::vector<Acts::BoundVariantMeasurement>& measurements1, const std::vector<Acts::BoundVariantMeasurement>& measurements2, const std::map<std::size_t, std::size_t>& indexMap){
     std::vector<MeasurementMatchRow> table;
     for (std::size_t idx1 = 0; idx1 < measurements1.size(); ++idx1){
         MeasurementMatchRow row;
@@ -99,11 +71,18 @@ auto getTable(const std::vector<Acts::BoundVariantMeasurement>& measurements1, c
 
 }
 
-// Function to print a formatted table
+/// @brief Creates a string with the data of the measurements and their relation according to the index map.
+/// @param measurements1 the measurements (1).
+/// @param measurements2 the measurements (2).
+/// @param indexMap the index map: measurements1 indices -> measurement2 indices.
+/// The index map describes which elements are related in the two measurement collections.
+/// @return a string formatted as a table.
 auto pairingStatistics(const std::vector<Acts::BoundVariantMeasurement>& measurements1, const std::vector<Acts::BoundVariantMeasurement>& measurements2, const std::map<std::size_t, std::size_t>& indexMap) {
-    auto table = getTable(measurements1, measurements2, indexMap);
+    
+    auto table = createTable(measurements1, measurements2, indexMap);
     
     std::stringstream ss;
+
     // Column headers
     ss  << std::setw(6) << "Idx1"
         << std::setw(25) << "Local1"
@@ -115,7 +94,7 @@ auto pairingStatistics(const std::vector<Acts::BoundVariantMeasurement>& measure
         << std::endl;
 
     // Line separator
-    ss << std::string(182, '-') << std::endl;
+    ss << std::string(192, '-') << std::endl;
 
     // Print each row
     for (const auto& row : table) {

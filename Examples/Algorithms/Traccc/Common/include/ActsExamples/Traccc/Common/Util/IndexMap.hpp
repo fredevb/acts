@@ -17,8 +17,19 @@
 #include <unordered_map>
 #include <stdexcept>
 
-namespace ActsExamples::Traccc::Common {
+namespace ActsExamples::Traccc::Common::Util {
 
+
+/// @brief 
+/// @tparam T 
+/// @tparam A 
+/// @param out the index into the candidate indices vector.
+/// Taking this index into the candidate indices vector will get the index in .
+/// @param element 
+/// @param candidateIdxs 
+/// @param candidateVec 
+/// @param eqFn 
+/// @return 
 template <typename T, typename A>
 auto findMatchIdx(std::size_t* out, const T& element, const std::vector<std::size_t>& candidateIdxs, const std::vector<T, A>& candidateVec, const std::function<bool(const T&, const T&)>& eqFn){
     for (std::size_t i = 0; i < candidateIdxs.size(); i++){
@@ -31,24 +42,9 @@ auto findMatchIdx(std::size_t* out, const T& element, const std::vector<std::siz
     return false;
 }
 
-void assertCriteria(const std::size_t domainSize, const std::size_t codomainSize, const bool requireInjective, const bool requireSurjective){
-    bool isInjective = domainSize <= codomainSize;
-    bool isSurjective = codomainSize >= domainSize;
-    bool isBijective = isInjective && isSurjective;
-    if (requireInjective && requireSurjective && !isBijective){
-        throw std::runtime_error("Domain and codomain do not meet requirements to create a bijective mapping");
-    }
-    if (requireSurjective && !isSurjective){
-        throw std::runtime_error("Domain and codomain do not meet requirements to create a surjective mapping");
-    }
-    if (requireInjective && !isInjective){
-        throw std::runtime_error("Domain and codomain do not meet requirements to create an injective mapping");
-    }
-}
-
 template <typename T1, typename T2, typename A1, typename A2>
-inline auto MatchingMap(const std::vector<T1, A1>& from, const std::vector<T1, A2>& to, const std::function<T2(const T1&)>& lshFn, const std::function<bool(const T1&, const T1&)>& eqFn, const bool bijection = true){
-    // The ideas is that we can combine to maps "hash code -> index in 'to'" and "index in 'from' -> hash code"
+inline auto matchMap(const std::vector<T1, A1>& from, const std::vector<T1, A2>& to, const std::function<T2(const T1&)>& lshFn, const std::function<bool(const T1&, const T1&)>& eqFn, const bool bijection = true){
+    // The idea is that we can combine to maps "hash code -> index in 'to'" and "index in 'from' -> hash code"
     // to obtain "index in 'from' -> index in 'to'".
 
     // However, since there can be collisions with the hash codes, 
@@ -88,6 +84,12 @@ inline auto MatchingMap(const std::vector<T1, A1>& from, const std::vector<T1, A
     return res;
 }
 
+/// @brief Creates a map from elements in one vector to another.
+/// The resulting map holds the elements by reference.
+/// @param from the first collection.
+/// @param to the second collection.
+/// @param indexMap a map of indices in the first collection to indices in the second collection.
+/// @returns the map: element in first collection -> element in second collection.
 template <typename T1, typename T2, typename A1, typename A2>
 std::map<T1, T2> referenceMap(const std::vector<T1, A1>& from, const std::vector<T2, A2>& to, const std::map<std::size_t, std::size_t>& indexMap){
     assert(from.size() == to.size());
@@ -96,16 +98,6 @@ std::map<T1, T2> referenceMap(const std::vector<T1, A1>& from, const std::vector
         res.emplace(std::piecewise_construct,
                     std::forward_as_tuple(from[i]),
                     std::forward_as_tuple(to[j]));
-    }
-    return res;
-}
-
-template <typename T, typename A>
-std::vector<T, A> reorder(const std::vector<T, A>& vec, const std::map<std::size_t, std::size_t>& indexMap){
-    assert(vec.size() == indexMap.size());
-    std::vector<T, A> res(vec.size());
-    for (const auto [i, j] : indexMap){
-        res[j] = vec[i];
     }
     return res;
 }

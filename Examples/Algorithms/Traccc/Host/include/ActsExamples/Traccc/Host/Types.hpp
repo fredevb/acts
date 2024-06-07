@@ -8,23 +8,6 @@
 
 #pragma once
 
-// Plugin include(s)
-#include "Acts/Plugins/Traccc/CellConversion.hpp"
-#include "Acts/Plugins/Traccc/TrackConversion.hpp"
-#include "Acts/Plugins/Traccc/MeasurementConversion.hpp"
-#include "Acts/Plugins/Covfie/CovfieConversion.hpp"
-
-// Acts include(s)
-#include "Acts/Geometry/TrackingGeometry.hpp"
-#include "Acts/EventData/TrackContainer.hpp"
-#include "Acts/Geometry/GeometryHierarchyMap.hpp"
-#include "Acts/Utilities/BinUtility.hpp"
-#include "Acts/EventData/TrackContainer.hpp"
-#include "ActsExamples/EventData/Track.hpp"
-
-// Acts examples include(s)
-#include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
-
 // Traccc include(s)
 #include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
 #include "traccc/clusterization/clusterization_algorithm.hpp"
@@ -35,23 +18,10 @@
 #include "traccc/seeding/track_params_estimation.hpp"
 #include "traccc/finding/finding_config.hpp"
 #include "traccc/fitting/fitting_config.hpp"
-#include "traccc/edm/cell.hpp"
-#include "traccc/definitions/primitives.hpp"
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
-#include "detray/detectors/bfield.hpp"
-#include "detray/io/frontend/detector_reader.hpp"
 #include "detray/propagator/rk_stepper.hpp"
-
-// VecMem include(s).
-#include <vecmem/memory/host_memory_resource.hpp>
-
-// System include(s).
-#include <cstdint>
-#include <cstdlib>
-#include <memory>
-#include <map>
 
 namespace ActsExamples::Chain::Host {
 

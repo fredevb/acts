@@ -26,6 +26,9 @@
 // Traccc include(s)
 #include "traccc/edm/track_state.hpp"
 
+// Boost include(s)
+#include <boost/range/combine.hpp>
+
 // System include(s)
 #include <memory>
 #include <variant>
@@ -183,41 +186,52 @@ inline auto makeTrack(
     return track;
 }
 
-template <typename algebra_t>
-void mapMeasurementIDs(
-    traccc::container_element<traccc::fitting_result<algebra_t> &, vecmem::vector<traccc::track_state<algebra_t>> &>& tracccTrack, 
-    const std::map<std::size_t, std::size_t>& map){
-    for (auto& tstate : getTrackStates(tracccTrack)){
-        tstate.get_measurement().measurement_id = map[tstate.get_measurement().measurement_id];
-    }
-}
-
-template <typename algebra_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t>
-void setSourceAndMeasurements(
-    const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& tracccTrack,
-    Acts::TrackProxy<track_container_t, trajectory_t, holder_t, false>& actsTrack,
-    const std::map<traccc::measurement, Acts::BoundVariantMeasurement>& map){
-
+/// @brief Creates a list of acts and traccc track state pairs by pairing the track states 1:1 by index.
+/// @note The Acts track and traccc track must contain the same number of track states.
+/// @tparam traccc_track_t type of traccc container_element.
+/// @tparam acts_track_t type of Acts track proxy.
+/// @param tracccTrack the traccc track.
+/// @param actsTrack the acts track.
+/// @return boost::combine of the track states.
+template <typename traccc_track_t, typename acts_track_t>
+auto trackStateZipView(
+    traccc_track_t& tracccTrack,
+    acts_track_t& actsTrack) {
     auto tracccTrackStates = getTrackStates(tracccTrack);
-    auto actsTrackStates = actsTrack.trackStates();
-
-    assert(tracccTrackStates.size() == actsTrack.nTrackStates());
-    std::size_t i = 0;
-    for (auto it = actsTrackStates.begin(); it != actsTrackStates.end(); ++it){
-        //auto measurementIdx = tracccTrackStates[i].get_measurement().measurement_id;
-        //auto& measurement = measurements[measurementIdx];
-        auto& measurement = map.at(tracccTrackStates[i].get_measurement());
-        std::visit([it](auto& m){ 
-            (*it).setCalibrated(m);
-            (*it).setUncalibratedSourceLink(m.sourceLink());
-        }, measurement);
-        i++;
-    }
+    // Since Boost combine will otherwise complain, it is converted to a vector.
+    auto actsTrackStates = std::vector(actsTrack.trackStates().begin(), actsTrack.trackStates().end());
+    return boost::combine(
+        tracccTrackStates,
+        actsTrackStates);
 }
 
-/// @param measurements A vector of calibrated measurements.
-/// @param sourceLinks A vector uncalibrated sourcelinks.
-/// @note The measurement index of each traccc track state must index its corresponding element in the calibrated measurements and uncalibrated sourcelinks vectors.
+/// @brief Sets the uncalibrated source link and calibrated measurement of the Acts track state
+/// where the calibrated and uncalibrated data is assumed to be the same.
+/// @param actsTrackState the Acts track state.
+/// @param measurement the Acts bound variant measurement.
+template <typename trajectory_t, std::size_t M>
+void setSourceAndMeasurement(Acts::TrackStateProxy<trajectory_t, M, false>& actsTrackState, const Acts::BoundVariantMeasurement& measurement){
+    std::visit([&actsTrackState](auto& m){ 
+        actsTrackState.setCalibrated(m);
+        actsTrackState.setUncalibratedSourceLink(m.sourceLink());
+    }, measurement);
+}
 
+/// @brief Sets the uncalibrated source links and calibrated measurements of the track states in the acts track.
+/// The uncalibrated source links and calibrated measurements are set using the measurement information in the track states of a traccc track.
+/// @note The traccc track and the acts track must contain the same number of track states as the track states are expected to be 1:1 in the track states containers.
+/// @param tracccTrack the traccc track
+/// @param actsTrack the acts track
+/// @param map the map from traccc measurement to acts measurement.
+/// The map is needed to know which 
+template <typename track_state_pairs_t>
+void setSourceAndMeasurements(const track_state_pairs_t& trackStatePairs, const std::map<traccc::measurement, Acts::BoundVariantMeasurement>& map){
+    for (auto pair : trackStatePairs){
+        // First item in pair is the traccc track.
+        // Second item in pair is the acts track.
+        auto measurement = map.at(pair.template get<0>().get_measurement());
+        setSourceAndMeasurement(pair.template get<1>(), measurement);
+    }
+}
 
 }
