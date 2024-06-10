@@ -84,7 +84,7 @@ inline auto createCellsAndModules(
         // Modify the geometry ID of the module if a barcode map is
         // provided.
         std::uint64_t geometryID = (barcodeMap != nullptr) ?
-            originalGeometryID : barcodeMap->at(geometryID).value();
+            barcodeMap->at(originalGeometryID).value() : originalGeometryID;
 
         // Add the module and its cells to the output.
         out.modules.push_back(

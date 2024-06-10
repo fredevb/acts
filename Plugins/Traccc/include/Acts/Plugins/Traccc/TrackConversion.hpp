@@ -121,36 +121,20 @@ inline void copyTrackState(const traccc::track_state<algebra_t>& source, Acts::T
     typeFlags.set(TrackStateFlag::MeasurementFlag);
 }
 
-/// @brief Gets the fitting result of a traccc container element (const).
+/// @brief Gets the fitting result of a traccc container element.
 /// @param e the traccc container element.
 /// @return the fitting result contained in the container element (i.e., e.header)
-template <typename algebra_t>
-inline const traccc::fitting_result<algebra_t>& getFittingResult(const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& e){
-    return e.header;
+template <typename fitting_result_t, typename track_state_vector_t>
+inline auto& getFittingResult(const traccc::container_element<fitting_result_t, track_state_vector_t>& tracccTrack){
+    return tracccTrack.header;
 }
 
-/// @brief Gets the fitting result of a traccc container element (non const).
-/// @param e the traccc container element.
-/// @return the fitting result contained in the container element (i.e., e.header)
-template <typename algebra_t>
-inline traccc::fitting_result<algebra_t>& getFittingResult(traccc::container_element<traccc::fitting_result<algebra_t> &, vecmem::vector<traccc::track_state<algebra_t>> &>& e){
-    return e.header;
-}
-
-/// @brief Gets the track states of a traccc container element (const).
+/// @brief Gets the track states of a traccc container element.
 /// @param e the traccc container element.
 /// @return the track states contained in the container element (i.e., e.items)
-template <typename algebra_t>
-inline const vecmem::vector<traccc::track_state<algebra_t>>& getTrackStates(const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& e){
-    return e.items;
-}
-
-/// @brief Gets the track states of a traccc container element (non const).
-/// @param e the traccc container element.
-/// @return the track states contained in the container element (i.e., e.items)
-template <typename algebra_t>
-inline vecmem::vector<traccc::track_state<algebra_t>>& getTrackStates(traccc::container_element<traccc::fitting_result<algebra_t> &, vecmem::vector<traccc::track_state<algebra_t>> &>& e){
-    return e.items;
+template <typename fitting_result_t, typename track_state_vector_t>
+inline auto& getTrackStates(const traccc::container_element<fitting_result_t, track_state_vector_t>& tracccTrack){
+    return tracccTrack.items;
 }
 
 /// @brief Creates a new track in the Acts track container.
@@ -162,9 +146,9 @@ inline vecmem::vector<traccc::track_state<algebra_t>>& getTrackStates(traccc::co
 /// @param trackingGeometry The Acts tracking geometry.
 /// @note The source link, calibrated measurements, and similar data
 /// which is not present in a traccc track state will not be set or modified.
-template <typename algebra_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
+template <typename fitting_result_t, typename track_state_vector_t, typename track_container_t, typename trajectory_t, template <typename> class holder_t, typename metadata_t, typename container_t>
 inline auto makeTrack(
-    const traccc::container_element<const traccc::fitting_result<algebra_t> &, const vecmem::vector<traccc::track_state<algebra_t>> &>& tracccTrack, 
+    const traccc::container_element<fitting_result_t, track_state_vector_t>& tracccTrack, 
     Acts::TrackContainer<track_container_t, trajectory_t, holder_t>& actsTrackContainer, 
     const detray::detector<metadata_t, container_t>& detector, 
     const Acts::TrackingGeometry& trackingGeometry) {
@@ -197,12 +181,24 @@ template <typename traccc_track_t, typename acts_track_t>
 auto trackStateZipView(
     traccc_track_t& tracccTrack,
     acts_track_t& actsTrack) {
-    auto tracccTrackStates = getTrackStates(tracccTrack);
-    // Since Boost combine will otherwise complain, it is converted to a vector.
-    auto actsTrackStates = std::vector(actsTrack.trackStates().begin(), actsTrack.trackStates().end());
-    return boost::combine(
-        tracccTrackStates,
-        actsTrackStates);
+    auto& tracccTrackStates = getTrackStates(tracccTrack);
+    auto actsTrackStates = actsTrack.trackStates();
+
+    using TracccTrackStateType = typename std::iterator_traits<decltype(tracccTrackStates.begin())>::value_type;
+    using ActsTrackStateType = typename std::iterator_traits<decltype(actsTrackStates.begin())>::value_type;
+
+    std::vector<std::tuple<TracccTrackStateType, ActsTrackStateType>> zippedTrackStates;
+    zippedTrackStates.reserve(tracccTrackStates.size());
+
+    auto tracccIter = tracccTrackStates.begin();
+    auto actsIter = actsTrackStates.begin();
+    while (tracccIter != tracccTrackStates.end() && actsIter != actsTrackStates.end()) {
+        zippedTrackStates.emplace_back(*tracccIter, *actsIter);
+        ++tracccIter;
+        ++actsIter;
+    }
+
+    return zippedTrackStates;
 }
 
 /// @brief Sets the uncalibrated source link and calibrated measurement of the Acts track state
@@ -212,8 +208,8 @@ auto trackStateZipView(
 template <typename trajectory_t, std::size_t M>
 void setSourceAndMeasurement(Acts::TrackStateProxy<trajectory_t, M, false>& actsTrackState, const Acts::BoundVariantMeasurement& measurement){
     std::visit([&actsTrackState](auto& m){ 
-        actsTrackState.setCalibrated(m);
         actsTrackState.setUncalibratedSourceLink(m.sourceLink());
+        actsTrackState.setCalibrated(m);
     }, measurement);
 }
 
@@ -225,12 +221,13 @@ void setSourceAndMeasurement(Acts::TrackStateProxy<trajectory_t, M, false>& acts
 /// @param map the map from traccc measurement to acts measurement.
 /// The map is needed to know which 
 template <typename track_state_pairs_t>
-void setSourceAndMeasurements(const track_state_pairs_t& trackStatePairs, const std::map<traccc::measurement, Acts::BoundVariantMeasurement>& map){
+void setSourceAndMeasurements(track_state_pairs_t& trackStatePairs, const std::map<traccc::measurement, Acts::BoundVariantMeasurement>& map){
     for (auto pair : trackStatePairs){
         // First item in pair is the traccc track.
         // Second item in pair is the acts track.
-        auto measurement = map.at(pair.template get<0>().get_measurement());
-        setSourceAndMeasurement(pair.template get<1>(), measurement);
+        auto x = std::get<1>(pair);
+        auto& measurement = map.at(std::get<0>(pair).get_measurement());
+        setSourceAndMeasurement(x, measurement);
     }
 }
 

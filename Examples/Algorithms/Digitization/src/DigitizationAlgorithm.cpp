@@ -308,11 +308,8 @@ ActsExamples::ProcessCode ActsExamples::DigitizationAlgorithm::execute(
   }
 
   m_sourceLinkWriteHandle(ctx, std::move(sourceLinks));
-  std::cout << "measurements: " << measurements.size() << std::endl;
   m_measurementWriteHandle(ctx, std::move(measurements));
-  std::cout << "cells: " << cellsMap.size() << std::endl;
   m_cellsWriteHandle(ctx, std::move(cellsMap));
-  std::cout << "clusters: " << clusters.size() << std::endl;
   m_clusterWriteHandle(ctx, std::move(clusters));
   m_measurementParticlesMapWriteHandle(ctx, std::move(measurementParticlesMap));
   m_measurementSimHitsMapWriteHandle(ctx, std::move(measurementSimHitsMap));

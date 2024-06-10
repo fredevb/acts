@@ -133,7 +133,7 @@ auto convertCells(const std::map<Acts::GeometryIdentifier, std::vector<Cluster::
 /// @return An Acts const track container.
 template <typename traccc_track_container_t, typename allocator_t>
 auto convertTracks(
-    const traccc_track_container_t& tracccTrackContainer,
+    traccc_track_container_t& tracccTrackContainer,
     const std::vector<traccc::measurement, allocator_t>& tracccMeasurements,
     const std::vector<Acts::BoundVariantMeasurement>& actsMeasurements
 ) const {
@@ -144,7 +144,7 @@ auto convertTracks(
     auto mcm = measurementConversionMap(tracccMeasurements, actsMeasurements);
 
     for (std::size_t i = 0; i < tracccTrackContainer.size(); i++) {
-        auto ttrack = tracccTrackContainer[i];
+        const auto& ttrack = tracccTrackContainer[i];
         auto atrack = Acts::TracccPlugin::makeTrack(ttrack, tracks, detector, trackingGeometry);
 
         auto trackStatePairs = Acts::TracccPlugin::trackStateZipView(ttrack, atrack);
