@@ -225,9 +225,8 @@ void setSourceAndMeasurements(track_state_pairs_t& trackStatePairs, const std::m
     for (auto pair : trackStatePairs){
         // First item in pair is the traccc track.
         // Second item in pair is the acts track.
-        auto x = std::get<1>(pair);
         auto& measurement = map.at(std::get<0>(pair).get_measurement());
-        setSourceAndMeasurement(x, measurement);
+        setSourceAndMeasurement(std::get<1>(pair), measurement);
     }
 }
 
