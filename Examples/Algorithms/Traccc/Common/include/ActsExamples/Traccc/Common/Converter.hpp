@@ -86,7 +86,7 @@ std::map<traccc::measurement, Acts::BoundVariantMeasurement> measurementConversi
     auto convertedMeasurements = Conversion::createActsMeasurements(detector, tracccMeasurements);
     auto indexMap = Measurement::matchMap(convertedMeasurements, actsMeasurements);
 
-    ACTS_INFO(Measurement::pairingStatistics(convertedMeasurements, actsMeasurements, indexMap));
+    ACTS_DEBUG(Measurement::pairingStatistics(convertedMeasurements, actsMeasurements, indexMap));
 
     return Util::referenceMap(tracccMeasurements, actsMeasurements, indexMap);
 }
