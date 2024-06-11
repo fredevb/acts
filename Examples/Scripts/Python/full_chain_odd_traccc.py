@@ -246,6 +246,7 @@ addDigitization(
     outputDirCsv=outputDir,
     rnd=rnd,
     minEnergyDeposit=0,
+    doMerge=True,
 )
 
 addTracccChain(
